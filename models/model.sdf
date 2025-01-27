@@ -1,0 +1,63 @@
+<!--Defines the physical properties of the drone in Gazebo -->
+<!--Specifies mass (1.5kg), dimensions (47x47x11cm), and inertial properties -->
+<!--Contains collision and visual elements for simulation -->
+<!--Uses a simple box geometry for initial testing -->
+
+<?xml version="1.0" ?>
+<!-- SDF model file for the drone, version 1.6 specification -->
+<sdf version="1.6">
+  <!-- Main drone model definition -->
+  <model name="drone">
+    <!-- Base link represents the main body of the drone -->
+    <link name="base_link">
+      <!-- Initial pose: x y z roll pitch yaw -->
+      <pose>0 0 0.1 0 0 0</pose>
+      <!-- Inertial properties for physics simulation -->
+      <inertial>
+        <!-- Mass in kilograms -->
+        <mass>1.5</mass>
+        <!-- Inertia matrix for rigid body dynamics -->
+        <inertia>
+          <!-- Moment of inertia around x-axis -->
+          <ixx>0.029125</ixx>
+          <!-- Product of inertia xy -->
+          <ixy>0</ixy>
+          <!-- Product of inertia xz -->
+          <ixz>0</ixz>
+          <!-- Moment of inertia around y-axis -->
+          <iyy>0.029125</iyy>
+          <!-- Product of inertia yz -->
+          <iyz>0</iyz>
+          <!-- Moment of inertia around z-axis -->
+          <izz>0.055225</izz>
+        </inertia>
+      </inertial>
+      <!-- Collision geometry for physics calculations -->
+      <collision name="collision">
+        <geometry>
+          <!-- Simple box shape for collision detection -->
+          <box>
+            <!-- Size in meters: length width height -->
+            <size>0.47 0.47 0.11</size>
+          </box>
+        </geometry>
+      </collision>
+      <!-- Visual representation of the drone -->
+      <visual name="visual">
+        <geometry>
+          <!-- Visual geometry matching collision box -->
+          <box>
+            <size>0.47 0.47 0.11</size>
+          </box>
+        </geometry>
+        <!-- Material properties for visualization -->
+        <material>
+          <!-- Ambient color (RGBA) -->
+          <ambient>0.5 0.5 0.5 1</ambient>
+          <!-- Diffuse color (RGBA) -->
+          <diffuse>0.5 0.5 0.5 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
