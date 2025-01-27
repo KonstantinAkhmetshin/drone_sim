@@ -10,6 +10,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Imu
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from sensor_msgs.msg import Image
 
 class DroneController(Node):
     def __init__(self):
@@ -31,12 +32,22 @@ class DroneController(Node):
             '/model/drone/imu',         # Topic name
             self.imu_callback,          # Callback function
             qos_profile)                # QoS profile
+        
+        self.camera_sub = self.create_subscription(
+            Image,
+            '/model/drone/camera',
+            self.camera_callback,
+            qos_profile)
             
         # Create timer for control loop
         self.timer = self.create_timer(0.1, self.control_loop)  # 10Hz control rate
         
     def imu_callback(self, msg):
         # Process IMU data (orientation, angular velocity, linear acceleration)
+        pass
+
+    def camera_callback(self, msg):
+        # Process camera data
         pass
         
     def control_loop(self):
