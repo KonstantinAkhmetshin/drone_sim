@@ -1,0 +1,1 @@
+ros2 launch drone_sim spawn_drone.launch.py

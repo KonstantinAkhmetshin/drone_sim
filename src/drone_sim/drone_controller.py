@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Implements basic drone control logic
 # Subscribes to IMU data for drone state
 # Publishes velocity commands (currently just basic hover)
