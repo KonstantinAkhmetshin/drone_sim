@@ -1,0 +1,40 @@
+/**:
+  ros__parameters:
+    # Object Detection Settings
+    detection:
+      target_color: [255, 0, 0]  # RGB values for red ball
+      color_tolerance: 20  # RGB tolerance range
+      min_object_size: 100  # Minimum pixel area
+      max_object_size: 100000  # Maximum pixel area
+      detection_threshold: 0.7  # Confidence threshold
+      
+    # Tracking Settings
+    tracking:
+      update_rate: 30.0  # Hz
+      max_tracking_distance: 10.0  # meters
+      lost_target_timeout: 1.0  # seconds
+      
+      # Target following behavior
+      following:
+        desired_distance: 3.0  # meters
+        min_distance: 1.5  # meters
+        max_distance: 8.0  # meters
+        height_offset: 1.0  # meters above target
+        
+      # Movement constraints
+      constraints:
+        max_velocity: 2.0  # m/s
+        max_acceleration: 1.0  # m/s^2
+        yaw_rate_max: 1.0  # rad/s
+        
+    # Camera Settings
+    camera:
+      enable_visualization: true
+      debug_image_topic: "/tracker/debug_image"
+      
+    # Logging Settings
+    logging:
+      enable_debug: true
+      log_detections: true
+      log_tracking: true
+      log_control: true

@@ -1,5 +1,0 @@
-/**:
-  ros__parameters:
-    tracker:
-      detection_threshold: 0.7
-      update_rate: 30.0

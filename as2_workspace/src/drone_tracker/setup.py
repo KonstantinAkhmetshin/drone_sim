@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+from glob import glob
 
 package_name = 'drone_tracker'
 
@@ -10,14 +12,20 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/config', [
-            'config/default_params.yaml',
-            'config/simulation_params.yaml'
+        # Include all launch files
+        (os.path.join('share', package_name, 'launch'), 
+         glob(os.path.join('launch', '*launch.[pxy][yma]*'))),
+        # Include all configuration files
+        (os.path.join('share', package_name, 'config'), [
+            'config/simulation_params.yaml',
+            'config/tracker_params.yaml'
         ]),
-        ('share/' + package_name + '/launch', [
-            'launch/simulation.launch.py',
-            'launch/hardware.launch.py'
-        ]),
+        # Include all world files
+        (os.path.join('share', package_name, 'worlds'),
+         glob(os.path.join('worlds', '*.world'))),
+        # Include all model files
+        (os.path.join('share', package_name, 'models'),
+         glob(os.path.join('models', '*.*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
