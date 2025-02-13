@@ -62,6 +62,8 @@ setup(
     entry_points={
         'console_scripts': [
             'tracker_node = drone_tracker.tracker_node:main',
+            'control_manager = drone_tracker.control_manager:main', 
+            'test_tracking_system = test.test_tracking_system:main',
         ],
     },
 )

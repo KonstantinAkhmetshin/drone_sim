@@ -1,0 +1,901 @@
+.
+├── as2_workspace
+│   ├── models
+│   │   └── tracked_object
+│   ├── src
+│   │   ├── custom_interfaces
+│   │   │   └── msg
+│   │   │       └── TrackingInfo.msg
+│   │   └── drone_tracker
+│   │       ├── config
+│   │       │   ├── simulation_params.yaml
+│   │       │   └── tracker_params.yaml
+│   │       ├── drone_tracker
+│   │       │   ├── control_manager.py
+│   │       │   ├── __init__.py
+│   │       │   ├── object_detector.py
+│   │       │   └── tracker_node.py
+│   │       ├── launch
+│   │       │   ├── hardware.launch.py
+│   │       │   └── simulation.launch.py
+│   │       ├── package.xml
+│   │       ├── resource
+│   │       │   └── drone_tracker
+│   │       ├── setup.cfg
+│   │       ├── setup.py
+│   │       └── test
+│   │           ├── test_detector.py
+│   │           └── test_tracker.py
+│   └── worlds
+│       └── tracking_world.world
+├── docs
+│   ├── api
+│   ├── DesignDoc.md
+│   ├── installation.md
+│   └── usage.md
+├── OUTPUT
+├── README.md
+└── scripts
+    ├── install_dependencies.sh
+    └── setup_environment.sh
+
+17 directories, 23 files
+
+=== FILE CONTENTS ===
+
+
+=== ./scripts/install_dependencies.sh ===
+
+#!/bin/bash
+# TODO: Add dependency installation commands
+
+-------------------
+
+
+=== ./scripts/setup_environment.sh ===
+
+#!/bin/bash
+# TODO: Add environment setup commands
+
+-------------------
+
+
+=== ./OUTPUT ===
+
+[Binary file or unable to read]
+
+-------------------
+
+
+=== ./.gitignore ===
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ROS
+install/
+log/
+build/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+-------------------
+
+
+=== ./docs/usage.md ===
+
+# Usage Instructions
+TODO: Add usage instructions
+
+-------------------
+
+
+=== ./docs/installation.md ===
+
+# Installation Guide
+TODO: Add installation instructions
+
+-------------------
+
+
+=== ./docs/DesignDoc.md ===
+
+# Autonomous Drone Object Tracking System
+
+## Project Overview
+This project implements an autonomous drone object tracking system using ROS2, Aerostack2 (AS2), and Gazebo Garden simulator. The system enables a quadcopter to autonomously track and follow a moving target using computer vision and advanced control algorithms.
+
+## System Architecture
+
+### High-Level Components
+1. **Simulation Environment** (Gazebo Garden)
+   - Provides physics simulation
+   - Handles drone dynamics
+   - Simulates sensor data (cameras, IMU)
+   - Contains the target object for tracking
+
+2. **ROS2-Gazebo Bridge**
+   - Enables communication between ROS2 and Gazebo
+   - Handles message translations
+   - Manages simulation time synchronization
+
+3. **Aerostack2 Framework**
+   - Provides drone control infrastructure
+   - Handles state estimation
+   - Manages platform interfaces
+   - Coordinates behavior execution
+
+4. **Object Tracking System**
+   - Processes camera images
+   - Detects and tracks target objects
+   - Generates control commands
+
+## Directory Structure Explanation
+
+```
+as2_workspace/src/drone_tracker/
+├── config/                      # Configuration directory
+│   ├── simulation_params.yaml   # Simulation configuration
+│   └── tracker_params.yaml      # Tracking algorithm parameters
+├── launch/
+│   └── simulation.launch.py     # Main launch file
+├── worlds/
+│   └── tracking_world.world     # Gazebo world definition
+├── models/                      # Gazebo model files
+├── resource/
+│   └── drone_tracker           # Package resource index
+├── drone_tracker/              # Python module directory
+│   ├── __init__.py
+│   └── tracker_node.py        # Main tracking implementation
+├── package.xml                 # Package manifest
+└── setup.py                   # Package setup script
+```
+
+### File Details and Purpose
+
+#### Configuration Files
+1. `simulation_params.yaml`
+   - Drone physical parameters (mass, inertia)
+   - Camera configuration
+   - PID controller gains
+   - ROS2-Gazebo bridge settings
+   Purpose: Defines all simulation-related parameters in one place for easy tuning
+
+2. `tracker_params.yaml`
+   - Object detection settings
+   - Tracking algorithm parameters
+   - Movement constraints
+   - Logging configuration
+   Purpose: Controls the behavior of the tracking system
+
+#### Launch Files
+`simulation.launch.py`
+- Launches all necessary components
+- Configures node parameters
+- Sets up ROS2-Gazebo bridge
+- Initializes Aerostack2 nodes
+Purpose: Provides a single entry point to start the entire system
+
+#### World Files
+`tracking_world.world`
+- Defines simulation environment
+- Specifies target object properties
+- Configures physics settings
+- Sets up lighting and ground plane
+Purpose: Creates the virtual environment for testing
+
+#### Python Module Files
+1. `tracker_node.py`
+   - Implements main tracking logic
+   - Processes camera images
+   - Generates control commands
+   - Manages target tracking state
+   Purpose: Core implementation of the tracking system
+
+## System Workflow
+
+### Initialization Phase
+1. Launch file starts Gazebo simulation
+2. ROS2-Gazebo bridge establishes communication
+3. Aerostack2 nodes initialize
+4. Tracker node begins monitoring camera feed
+
+### Operation Phase
+1. **Image Processing**
+   - Camera feed is received from Gazebo
+   - Images are processed to detect target
+   - Target position is extracted
+
+2. **Target Tracking**
+   - Target position is tracked over time
+   - Velocity and trajectory are estimated
+   - Target state is maintained
+
+3. **Control Generation**
+   - Desired drone position is calculated
+   - Control commands are generated
+   - Commands are sent to Aerostack2
+
+4. **Execution**
+   - Aerostack2 processes commands
+   - Drone movement is simulated in Gazebo
+   - New sensor data is generated
+
+## Key Features
+
+### Object Detection
+- Color-based detection
+- Size filtering
+- Position estimation
+- Confidence scoring
+
+### Tracking Algorithm
+- Position prediction
+- Lost target recovery
+- Multiple object disambiguation
+- Noise filtering
+
+### Control System
+- PID control for position
+- Smooth trajectory generation
+- Speed and acceleration limits
+- Safety constraints
+
+## Parameters and Configuration
+
+### Key Simulation Parameters
+- Drone physical properties
+- Camera specifications
+- Control gains
+- World properties
+
+### Key Tracking Parameters
+- Detection thresholds
+- Tracking constraints
+- Following behavior
+- Safety limits
+
+## Development and Testing
+
+### Build Instructions
+```bash
+cd as2_workspace
+colcon build
+source install/setup.bash
+```
+
+### Launch Commands
+```bash
+ros2 launch drone_tracker simulation.launch.py
+```
+
+### Testing Scenarios
+1. Stationary target tracking
+2. Moving target following
+3. Lost target recovery
+4. Multiple object disambiguation
+
+## Future Enhancements
+1. Multiple drone coordination
+2. Advanced object recognition
+3. Dynamic obstacle avoidance
+4. Path planning optimization
+
+## Dependencies
+- ROS2 Jazzy
+- Gazebo Garden
+- Aerostack2
+- OpenCV
+- Python 3.8+
+
+## Performance Considerations
+- Image processing frequency
+- Control loop rate
+- Communication latency
+- Resource utilization
+
+## Safety Features
+- Maximum speed limits
+- Safe distance maintenance
+- Lost target handling
+- Emergency stop conditions
+-------------------
+
+
+=== ./README.md ===
+
+# Autonomous Drone Object Tracking
+
+This project implements autonomous object tracking using a drone with ROS2 and Aerostack2.
+
+## Quick Start
+
+1. Install dependencies:
+   ```bash
+   ./scripts/install_dependencies.sh
+   ```
+
+2. Set up environment:
+   ```bash
+   source ./scripts/setup_environment.sh
+   ```
+
+3. Build the project:
+   ```bash
+   cd as2_workspace
+   colcon build
+   ```
+
+## Documentation
+
+- [Installation Guide](docs/installation.md)
+- [Usage Instructions](docs/usage.md)
+- [API Documentation](docs/api/)
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/launch/hardware.launch.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/launch/simulation.launch.py ===
+
+#!/usr/bin/env python3
+
+from launch import LaunchDescription
+from launch.actions import (
+    IncludeLaunchDescription,
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    GroupAction
+)
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node, PushRosNamespace
+from launch_ros.substitutions import FindPackageShare
+from ament_index_python.packages import get_package_share_directory
+import os
+
+def generate_launch_description():
+    # Declare arguments
+    namespace = LaunchConfiguration('namespace')
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    world_file = LaunchConfiguration('world_file')
+
+    # Declare launch arguments
+    declare_namespace_cmd = DeclareLaunchArgument(
+        'namespace',
+        default_value='drone0',
+        description='Namespace of the drone'
+    )
+
+    declare_use_sim_time_cmd = DeclareLaunchArgument(
+        'use_sim_time',
+        default_value='true',
+        description='Use simulation time'
+    )
+
+    declare_world_file_cmd = DeclareLaunchArgument(
+        'world_file',
+        default_value=os.path.join(
+            get_package_share_directory('drone_tracker'),
+            'worlds',
+            'tracking_world.world'
+        ),
+        description='Gazebo world file'
+    )
+
+    # Load config files
+    config_sim = os.path.join(
+        get_package_share_directory('drone_tracker'),
+        'config',
+        'simulation_params.yaml'
+    )
+    config_tracker = os.path.join(
+        get_package_share_directory('drone_tracker'),
+        'config',
+        'tracker_params.yaml'
+    )
+
+    # Launch Gazebo Garden
+    gazebo = ExecuteProcess(
+        cmd=['gz', 'sim', '-r', world_file],
+        output='screen'
+    )
+
+    # Bridge between Gazebo and ROS
+    bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        name='parameter_bridge',
+        output='screen',
+        parameters=[{
+            'use_sim_time': use_sim_time,
+            # Add required bridges here
+            'bridge_topics': [
+                # Add topic remappings as needed
+                '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+                '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+                '/camera@sensor_msgs/msg/Image[gz.msgs.Image',
+            ]
+        }]
+    )
+
+    # Launch Aerostack2 base nodes
+    as2_core = GroupAction([
+        PushRosNamespace(namespace),
+        
+        # Platform interface
+        Node(
+            package='as2_platform_gazebo',
+            executable='as2_platform_gazebo_node',
+            name='platform',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+                'simulation_mode': True
+            }],
+            output='screen'
+        ),
+
+        # State estimator
+        Node(
+            package='as2_state_estimator',
+            executable='as2_state_estimator_node',
+            name='state_estimator',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+            }],
+            output='screen'
+        ),
+
+        # Controller
+        Node(
+            package='as2_controller',
+            executable='as2_controller_node',
+            name='controller',
+            parameters=[{
+                'use_sim_time': use_sim_time,
+            }],
+            output='screen'
+        ),
+
+        # Tracker node (our custom node)
+        Node(
+            package='drone_tracker',
+            executable='tracker_node',
+            name='tracker',
+            parameters=[
+                {'use_sim_time': use_sim_time},
+                config_sim,
+                config_tracker
+            ],
+            output='screen'
+        )
+    ])  # Closing bracket for GroupAction
+
+    # Create launch description and add actions
+    ld = LaunchDescription()
+
+    # Add declared arguments
+    ld.add_action(declare_namespace_cmd)
+    ld.add_action(declare_use_sim_time_cmd)
+    ld.add_action(declare_world_file_cmd)
+
+    # Add main actions
+    ld.add_action(gazebo)
+    ld.add_action(bridge)
+    ld.add_action(as2_core)
+
+    return ld
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/setup.py ===
+
+# setup.py
+from setuptools import setup, find_packages
+import os
+from glob import glob
+
+package_name = 'drone_tracker'
+
+setup(
+    # Package information
+    name=package_name,
+    version='0.0.1',
+    packages=find_packages(),
+    
+    # Dependencies
+    install_requires=[
+        'setuptools',
+        'opencv-python',
+        'numpy',
+    ],
+    
+    # Package data and resources
+    data_files=[
+        # Package index
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+            
+        # Package manifest
+        ('share/' + package_name, ['package.xml']),
+        
+        # Launch files
+        (os.path.join('share', package_name, 'launch'),
+         glob('launch/*launch.[pxy][yma]*')),
+         
+        # Configuration files
+        (os.path.join('share', package_name, 'config'), [
+            'config/simulation_params.yaml',
+            'config/tracker_params.yaml',
+        ]),
+        
+        # World files
+        (os.path.join('share', package_name, 'worlds'),
+         glob('worlds/*.world')),
+         
+        # Model files
+        (os.path.join('share', package_name, 'models'),
+         glob('models/**/*', recursive=True)),
+    ],
+    
+    # Make package zip safe
+    zip_safe=True,
+    
+    # Maintainer info
+    maintainer='Your Name',
+    maintainer_email='your.email@example.com',
+    description='Autonomous drone object tracking package',
+    license='Apache-2.0',
+    
+    # Tests
+    tests_require=['pytest'],
+    
+    # Entry points for ROS2 nodes
+    entry_points={
+        'console_scripts': [
+            'tracker_node = drone_tracker.tracker_node:main',
+        ],
+    },
+)
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/setup.cfg ===
+
+[develop]
+script_dir=$base/lib/drone_tracker
+[install]
+install_scripts=$base/lib/drone_tracker
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/drone_tracker/control_manager.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/drone_tracker/object_detector.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/drone_tracker/tracker_node.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/drone_tracker/__init__.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/test/test_detector.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/test/test_tracker.py ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/config/simulation_params.yaml ===
+
+/**:
+  ros__parameters:
+    # Simulation Settings
+    use_sim_time: true
+    
+    # Drone Configuration
+    drone:
+      id: "drone0"
+      frame_id: "drone0/base_link"
+      mass: 1.0  # kg
+      max_thrust: 20.0  # N
+      max_angular_velocity: 1.5  # rad/s
+      
+      # Physical properties
+      inertia:  # kg*m^2
+        ixx: 0.01
+        iyy: 0.01
+        izz: 0.02
+      
+      # Sensor configuration
+      camera:
+        frame_id: "drone0/camera_link"
+        topic: "/camera/image_raw"
+        info_topic: "/camera/camera_info"
+        width: 640
+        height: 480
+        fov: 1.0472  # 60 degrees in radians
+        update_rate: 30.0  # Hz
+        
+      # PID Controller gains
+      control:
+        position:
+          p: [1.0, 1.0, 1.0]  # x, y, z
+          i: [0.0, 0.0, 0.1]
+          d: [0.0, 0.0, 0.0]
+        attitude:
+          p: [1.0, 1.0, 1.0]  # roll, pitch, yaw
+          i: [0.0, 0.0, 0.0]
+          d: [0.0, 0.0, 0.0]
+
+    # World Configuration
+    world:
+      frame_id: "world"
+      gravity: -9.81  # m/s^2
+      
+    # Target Object Configuration
+    target:
+      frame_id: "target_link"
+      model_name: "tracking_target"
+      
+    # ROS Bridge Settings
+    bridge:
+      image_topic: "/camera/image_raw"
+      clock_topic: "/clock"
+      tf_topic: "/tf"
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/config/tracker_params.yaml ===
+
+/**:
+  ros__parameters:
+    # Object Detection Settings
+    detection:
+      target_color: [255, 0, 0]  # RGB values for red ball
+      color_tolerance: 20  # RGB tolerance range
+      min_object_size: 100  # Minimum pixel area
+      max_object_size: 100000  # Maximum pixel area
+      detection_threshold: 0.7  # Confidence threshold
+      
+    # Tracking Settings
+    tracking:
+      update_rate: 30.0  # Hz
+      max_tracking_distance: 10.0  # meters
+      lost_target_timeout: 1.0  # seconds
+      
+      # Target following behavior
+      following:
+        desired_distance: 3.0  # meters
+        min_distance: 1.5  # meters
+        max_distance: 8.0  # meters
+        height_offset: 1.0  # meters above target
+        
+      # Movement constraints
+      constraints:
+        max_velocity: 2.0  # m/s
+        max_acceleration: 1.0  # m/s^2
+        yaw_rate_max: 1.0  # rad/s
+        
+    # Camera Settings
+    camera:
+      enable_visualization: true
+      debug_image_topic: "/tracker/debug_image"
+      
+    # Logging Settings
+    logging:
+      enable_debug: true
+      log_detections: true
+      log_tracking: true
+      log_control: true
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/package.xml ===
+
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>drone_tracker</name>
+  <version>0.0.1</version>
+  <description>Autonomous drone object tracking package</description>
+  <maintainer email="your.email@example.com">Your Name</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>gazebo_ros</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  
+  <exec_depend>gazebo_ros_pkgs</exec_depend>
+  <exec_depend>ros2launch</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+    <gazebo_ros gazebo_model_path="${prefix}/models"/>
+    <gazebo_ros gazebo_media_path="${prefix}/worlds"/>
+  </export>
+</package>
+-------------------
+
+
+=== ./as2_workspace/src/drone_tracker/resource/drone_tracker ===
+
+
+-------------------
+
+
+=== ./as2_workspace/src/custom_interfaces/msg/TrackingInfo.msg ===
+
+std_msgs/Header header
+geometry_msgs/Point position
+geometry_msgs/Vector3 velocity
+float32 confidence
+
+-------------------
+
+
+=== ./as2_workspace/worlds/tracking_world.world ===
+
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="tracking_world">
+    <physics name="1ms" type="ignored">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000.0</real_time_update_rate>
+    </physics>
+
+    <plugin
+      filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+    </plugin>
+    <plugin
+      filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands">
+    </plugin>
+    <plugin
+      filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="tracking_target">
+      <pose>5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>1.0</mass>
+          <inertia>
+            <ixx>0.1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.1</iyy>
+            <iyz>0</iyz>
+            <izz>0.1</izz>
+          </inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <sphere>
+              <radius>0.25</radius>
+            </sphere>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <sphere>
+              <radius>0.25</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+            <specular>1 0 0 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+  </world>
+</sdf>
+-------------------
+

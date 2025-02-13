@@ -2,8 +2,8 @@
   ros__parameters:
     # Object Detection Settings
     detection:
-      target_color: [255, 0, 0]  # RGB values for red ball
-      color_tolerance: 20  # RGB tolerance range
+      target_color: [0, 255, 0]  # RGB values for red ball
+      color_tolerance: 40  # RGB tolerance range
       min_object_size: 100  # Minimum pixel area
       max_object_size: 100000  # Maximum pixel area
       detection_threshold: 0.7  # Confidence threshold
