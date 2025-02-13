@@ -24,10 +24,11 @@
 │   │       ├── setup.cfg
 │   │       ├── setup.py
 │   │       └── test
-│   │           ├── test_detector.py
-│   │           └── test_tracker.py
+│   │           └── test_tracking_system.py
 │   └── worlds
 │       └── tracking_world.world
+├── build_files_tree.sh
+├── build.sh
 ├── docs
 │   ├── api
 │   ├── DesignDoc.md
@@ -35,13 +36,29 @@
 │   └── usage.md
 ├── OUTPUT
 ├── README.md
+├── run_simulation.sh
+├── run_test_script.sh
 └── scripts
     ├── install_dependencies.sh
     └── setup_environment.sh
 
-17 directories, 23 files
+17 directories, 26 files
 
 === FILE CONTENTS ===
+
+
+=== ./run_test_script.sh ===
+
+ros2 run drone_tracker test_tracking_system.py
+-------------------
+
+
+=== ./build.sh ===
+
+cd as2_workspace
+colcon build
+source install/setup.bash
+-------------------
 
 
 === ./scripts/install_dependencies.sh ===
@@ -334,6 +351,12 @@ ros2 launch drone_tracker simulation.launch.py
 -------------------
 
 
+=== ./run_simulation.sh ===
+
+ros2 launch drone_tracker simulation.launch.py
+-------------------
+
+
 === ./README.md ===
 
 # Autonomous Drone Object Tracking
@@ -591,6 +614,8 @@ setup(
     entry_points={
         'console_scripts': [
             'tracker_node = drone_tracker.tracker_node:main',
+            'control_manager = drone_tracker.control_manager:main', 
+            'test_tracking_system = test.test_tracking_system:main',
         ],
     },
 )
@@ -608,19 +633,901 @@ install_scripts=$base/lib/drone_tracker
 
 === ./as2_workspace/src/drone_tracker/drone_tracker/control_manager.py ===
 
+#!/usr/bin/env python3
 
+import numpy as np
+from typing import Optional, Dict
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import Odometry
+from std_msgs.msg import Bool
+import time
+
+class ControlManager(Node):
+    """
+    Manages drone control and movement based on tracking data.
+    Simulation version using ROS2 and Gazebo.
+    """
+    
+    def __init__(self):
+        super().__init__('control_manager')
+        
+        # Control parameters from configuration
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('max_velocity', 2.0),
+                ('max_acceleration', 1.0),
+                ('max_yaw_rate', 45.0),
+                ('tracking_distance', 3.0),
+                ('min_altitude', 2.0),
+                ('max_altitude', 10.0),
+                ('position_tolerance', 0.3),
+                ('yaw_tolerance', 5.0),
+                ('pid_gains_pos_x', 0.5),
+                ('pid_gains_pos_y', 0.5),
+                ('pid_gains_pos_z', 0.5),
+                ('pid_gains_yaw', 2.0)
+            ]
+        )
+        
+        # Load parameters with proper error handling
+        try:
+            self.control_params = self._load_parameters()
+        except Exception as e:
+            self.get_logger().error(f'Failed to load parameters: {e}')
+            raise
+        
+        # Initialize control states with proper typing
+        self.last_target_pose: Optional[PoseStamped] = None
+        self.current_pose: Optional[PoseStamped] = None
+        self.last_control_time: float = time.time()
+        self.is_tracking_active: bool = False
+        
+        # Initialize PID control errors
+        self.last_position_error = np.zeros(3)
+        self.integral_position_error = np.zeros(3)
+        
+        # ROS2 Publishers with QoS profiles
+        self.cmd_vel_pub = self.create_publisher(
+            Twist,
+            'cmd_vel',
+            10  # QoS depth
+        )
+        
+        self.status_pub = self.create_publisher(
+            Bool,
+            'tracking_status',
+            10
+        )
+        
+        # ROS2 Subscribers with QoS profiles
+        self.target_sub = self.create_subscription(
+            PoseStamped,
+            'target_pose',
+            self.target_callback,
+            10
+        )
+        
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            'odom',
+            self.odom_callback,
+            10
+        )
+        
+        # Control loop timer with error handling
+        try:
+            self.timer = self.create_timer(
+                1.0/30.0,  # 30 Hz
+                self.control_loop
+            )
+        except Exception as e:
+            self.get_logger().error(f'Failed to create control timer: {e}')
+            raise
+        
+        self.get_logger().info('Control Manager initialized successfully')
+        
+    def _load_parameters(self) -> Dict:
+        """Load and validate all parameters"""
+        params = {
+            'max_velocity': self.get_parameter('max_velocity').value,
+            'max_acceleration': self.get_parameter('max_acceleration').value,
+            'max_yaw_rate': self.get_parameter('max_yaw_rate').value,
+            'tracking_distance': self.get_parameter('tracking_distance').value,
+            'min_altitude': self.get_parameter('min_altitude').value,
+            'max_altitude': self.get_parameter('max_altitude').value,
+            'position_tolerance': self.get_parameter('position_tolerance').value,
+            'yaw_tolerance': self.get_parameter('yaw_tolerance').value,
+            'pid_gains': {
+                'pos_x': self.get_parameter('pid_gains_pos_x').value,
+                'pos_y': self.get_parameter('pid_gains_pos_y').value,
+                'pos_z': self.get_parameter('pid_gains_pos_z').value,
+                'yaw': self.get_parameter('pid_gains_yaw').value
+            }
+        }
+        
+        # Validate parameters
+        if params['max_velocity'] <= 0:
+            raise ValueError('max_velocity must be positive')
+        if params['max_acceleration'] <= 0:
+            raise ValueError('max_acceleration must be positive')
+            
+        return params
+        
+    def target_callback(self, msg: PoseStamped) -> None:
+        """
+        Handle incoming target pose updates
+        Args:
+            msg: Target pose message
+        """
+        self.last_target_pose = msg
+        
+    def odom_callback(self, msg: Odometry) -> None:
+        """
+        Handle odometry updates
+        Args:
+            msg: Odometry message
+        """
+        self.current_pose = msg.pose.pose
+        
+    def enable_tracking(self, enable: bool) -> None:
+        """
+        Enable or disable tracking mode
+        Args:
+            enable: True to enable tracking, False to disable
+        """
+        if enable != self.is_tracking_active:
+            self.is_tracking_active = enable
+            self.get_logger().info(f"Tracking {'enabled' if enable else 'disabled'}")
+            
+            if not enable:
+                # Reset control states when disabling
+                self.last_target_pose = None
+                self.integral_position_error = np.zeros(3)
+                self.last_position_error = np.zeros(3)
+                self.send_zero_velocity()
+                
+    def send_zero_velocity(self) -> None:
+        """Send zero velocity command with proper handling"""
+        try:
+            cmd = Twist()
+            self.cmd_vel_pub.publish(cmd)
+        except Exception as e:
+            self.get_logger().error(f'Failed to publish zero velocity: {e}')
+            
+    def calculate_control_commands(self) -> Optional[Twist]:
+        """
+        Calculate control commands based on current state using PID control
+        Returns:
+            Optional[Twist]: Control commands or None if calculation fails
+        """
+        if not self.last_target_pose or not self.current_pose:
+            return None
+            
+        try:
+            # Calculate time delta
+            current_time = time.time()
+            dt = current_time - self.last_control_time
+            self.last_control_time = current_time
+            
+            # Extract positions
+            target_pos = np.array([
+                self.last_target_pose.pose.position.x,
+                self.last_target_pose.pose.position.y,
+                self.last_target_pose.pose.position.z
+            ])
+            
+            current_pos = np.array([
+                self.current_pose.position.x,
+                self.current_pose.position.y,
+                self.current_pose.position.z
+            ])
+            
+            # Calculate position error
+            pos_error = target_pos - current_pos
+            
+            # Update integral and derivative terms
+            self.integral_position_error += pos_error * dt
+            derivative_error = (pos_error - self.last_position_error) / dt if dt > 0 else 0
+            self.last_position_error = pos_error
+            
+            # Calculate PID control output
+            pid_output = (
+                pos_error * self.control_params['pid_gains']['pos_x'] +
+                self.integral_position_error * 0.1 +  # Small integral gain
+                derivative_error * 0.1  # Small derivative gain
+            )
+            
+            # Apply velocity limits
+            speed = np.linalg.norm(pid_output)
+            if speed > self.control_params['max_velocity']:
+                pid_output = pid_output * self.control_params['max_velocity'] / speed
+                
+            # Create velocity command
+            cmd = Twist()
+            cmd.linear.x = float(pid_output[0])
+            cmd.linear.y = float(pid_output[1])
+            cmd.linear.z = float(pid_output[2])
+            
+            # Calculate yaw to face target
+            target_yaw = np.arctan2(pos_error[1], pos_error[0])
+            current_yaw = self.get_yaw_from_quaternion(
+                self.current_pose.orientation.x,
+                self.current_pose.orientation.y,
+                self.current_pose.orientation.z,
+                self.current_pose.orientation.w
+            )
+            
+            # Normalize yaw error to [-pi, pi]
+            yaw_error = np.arctan2(np.sin(target_yaw - current_yaw), 
+                                 np.cos(target_yaw - current_yaw))
+            
+            # Apply yaw rate limit
+            yaw_rate = np.clip(
+                yaw_error * self.control_params['pid_gains']['yaw'],
+                -np.radians(self.control_params['max_yaw_rate']),
+                np.radians(self.control_params['max_yaw_rate'])
+            )
+            
+            cmd.angular.z = float(yaw_rate)
+            
+            return cmd
+            
+        except Exception as e:
+            self.get_logger().error(f'Error in control calculation: {e}')
+            return None
+            
+    def get_yaw_from_quaternion(self, x: float, y: float, z: float, w: float) -> float:
+        """
+        Extract yaw angle from quaternion
+        Args:
+            x, y, z, w: Quaternion components
+        Returns:
+            float: Yaw angle in radians
+        """
+        # Calculate yaw (z-axis rotation) from quaternion
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y * y + z * z)
+        return np.arctan2(siny_cosp, cosy_cosp)
+        
+    def control_loop(self) -> None:
+        """Main control loop with error handling"""
+        try:
+            if not self.is_tracking_active:
+                return
+                
+            # Calculate and send control commands
+            cmd = self.calculate_control_commands()
+            if cmd is not None:
+                self.cmd_vel_pub.publish(cmd)
+            else:
+                self.send_zero_velocity()
+                
+            # Publish tracking status
+            status_msg = Bool()
+            status_msg.data = self.is_tracking_active
+            self.status_pub.publish(status_msg)
+            
+        except Exception as e:
+            self.get_logger().error(f"Error in control loop: {e}")
+            self.enable_tracking(False)
+            self.send_zero_velocity()
+
+def main(args=None):
+    rclpy.init(args=args)
+    controller = ControlManager()
+    
+    try:
+        rclpy.spin(controller)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        controller.get_logger().error(f"Unexpected error: {e}")
+    finally:
+        controller.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 -------------------
 
 
 === ./as2_workspace/src/drone_tracker/drone_tracker/object_detector.py ===
 
+#!/usr/bin/env python3
 
+import cv2
+import numpy as np
+from dataclasses import dataclass
+from typing import Tuple, Optional, List
+import time
+
+@dataclass
+class DetectionConfig:
+    """Configuration parameters for object detection"""
+    target_color: Tuple[int, int, int]  # RGB values
+    color_tolerance: int
+    min_object_size: int
+    max_object_size: int
+    detection_threshold: float
+
+    def validate(self) -> None:
+        """Validate configuration parameters"""
+        if not all(0 <= x <= 255 for x in self.target_color):
+            raise ValueError("Target color values must be between 0 and 255")
+        if self.color_tolerance < 0 or self.color_tolerance > 255:
+            raise ValueError("Color tolerance must be between 0 and 255")
+        if self.min_object_size < 0:
+            raise ValueError("Minimum object size must be positive")
+        if self.max_object_size < self.min_object_size:
+            raise ValueError("Maximum object size must be greater than minimum")
+        if not 0 <= self.detection_threshold <= 1:
+            raise ValueError("Detection threshold must be between 0 and 1")
+
+@dataclass
+class Detection:
+    """Object detection result"""
+    center: Tuple[int, int]  # (x, y) in pixels
+    size: float  # Area in pixels
+    confidence: float
+    bounding_box: Tuple[int, int, int, int]  # (x, y, w, h)
+    timestamp: float  # Time of detection
+
+class ObjectDetector:
+    """
+    Color-based object detector using OpenCV.
+    Detects objects based on color thresholding and contour analysis.
+    Includes features for robust detection in various lighting conditions.
+    """
+    
+    def __init__(self, config: DetectionConfig):
+        """
+        Initialize the detector with configuration parameters.
+        
+        Args:
+            config (DetectionConfig): Configuration parameters for detection
+        """
+        self.config = config
+        self.config.validate()
+        
+        # Convert RGB target color to HSV for better color detection
+        rgb_color = np.uint8([[self.config.target_color]])
+        self.target_hsv = cv2.cvtColor(rgb_color, cv2.COLOR_RGB2HSV)[0][0]
+        
+        # Initialize detection history for tracking
+        self.detection_history: List[Detection] = []
+        self.history_max_size = 5
+        
+        # Initialize adaptive parameters
+        self.brightness_offset = 0
+        self.last_good_detection_time = 0
+        
+    def preprocess_image(self, image: np.ndarray) -> np.ndarray:
+        """
+        Preprocess image for better detection
+        
+        Args:
+            image: Input BGR image
+            
+        Returns:
+            Preprocessed image
+        """
+        # Convert to float32 for processing
+        float_img = image.astype(np.float32) / 255.0
+        
+        # Apply adaptive brightness adjustment
+        adjusted = cv2.convertScaleAbs(
+            float_img, 
+            alpha=1.0 + self.brightness_offset/100.0,
+            beta=self.brightness_offset
+        )
+        
+        # Apply mild denoising
+        denoised = cv2.fastNlMeansDenoisingColored(
+            adjusted,
+            None,
+            10,
+            10,
+            7,
+            21
+        )
+        
+        return denoised
+        
+    def detect(self, image: np.ndarray) -> Optional[Detection]:
+        """
+        Detect the target object in an image.
+        
+        Args:
+            image: Input image in BGR format
+            
+        Returns:
+            Optional[Detection]: Detection result if object found, None otherwise
+        """
+        try:
+            # Preprocess image
+            processed = self.preprocess_image(image)
+            
+            # Convert to HSV color space
+            hsv_image = cv2.cvtColor(processed, cv2.COLOR_BGR2HSV)
+            
+            # Create color mask with tolerance
+            lower_bound = np.array([
+                max(0, self.target_hsv[0] - self.config.color_tolerance),
+                max(30, self.target_hsv[1] - self.config.color_tolerance),  # Minimum saturation
+                max(30, self.target_hsv[2] - self.config.color_tolerance)   # Minimum value
+            ])
+            
+            upper_bound = np.array([
+                min(180, self.target_hsv[0] + self.config.color_tolerance),
+                min(255, self.target_hsv[1] + self.config.color_tolerance),
+                min(255, self.target_hsv[2] + self.config.color_tolerance)
+            ])
+            
+            # Apply color threshold
+            mask = cv2.inRange(hsv_image, lower_bound, upper_bound)
+            
+            # Apply morphological operations to reduce noise
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+            
+            # Find contours in the mask
+            contours, _ = cv2.findContours(
+                mask, 
+                cv2.RETR_EXTERNAL, 
+                cv2.CHAIN_APPROX_SIMPLE
+            )
+            
+            if not contours:
+                return None
+                
+            # Find valid contours within size constraints
+            valid_contours = [
+                cnt for cnt in contours
+                if self.config.min_object_size <= cv2.contourArea(cnt) <= self.config.max_object_size
+            ]
+            
+            if not valid_contours:
+                return None
+                
+            # Get the largest valid contour
+            largest_contour = max(valid_contours, key=cv2.contourArea)
+            
+            # Calculate contour properties
+            area = cv2.contourArea(largest_contour)
+            x, y, w, h = cv2.boundingRect(largest_contour)
+            center = (x + w//2, y + h//2)
+            
+            # Calculate confidence based on multiple factors
+            color_confidence = self._calculate_color_confidence(
+                processed[y:y+h, x:x+w]
+            )
+            
+            size_confidence = self._calculate_size_confidence(area)
+            shape_confidence = self._calculate_shape_confidence(largest_contour)
+            
+            # Combine confidences
+            confidence = (
+                color_confidence * 0.4 +
+                size_confidence * 0.3 +
+                shape_confidence * 0.3
+            )
+            
+            if confidence < self.config.detection_threshold:
+                return None
+                
+            # Create detection object
+            detection = Detection(
+                center=center,
+                size=area,
+                confidence=confidence,
+                bounding_box=(x, y, w, h),
+                timestamp=time.time()
+            )
+            
+            # Update detection history
+            self._update_history(detection)
+            
+            # Update adaptive parameters
+            self._update_adaptive_params(detection)
+            
+            return detection
+            
+        except Exception as e:
+            print(f"Error in object detection: {e}")
+            return None
+            
+    def _calculate_color_confidence(self, roi: np.ndarray) -> float:
+        """
+        Calculate confidence based on color match
+        
+        Args:
+            roi: Region of interest containing the detected object
+            
+        Returns:
+            float: Confidence value between 0 and 1
+        """
+        if roi.size == 0:
+            return 0.0
+            
+        # Convert ROI to HSV
+        hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        
+        # Calculate color difference
+        diff = np.abs(hsv_roi - self.target_hsv)
+        
+        # Weight hue difference more heavily
+        weighted_diff = (diff[:,:,0] * 2 + diff[:,:,1] + diff[:,:,2]) / 4
+        
+        # Normalize and invert so 1.0 means perfect match
+        confidence = 1.0 - (np.mean(weighted_diff) / 255.0)
+        return max(0.0, min(1.0, confidence))
+        
+    def _calculate_size_confidence(self, area: float) -> float:
+        """
+        Calculate confidence based on object size
+        
+        Args:
+            area: Area of detected object in pixels
+            
+        Returns:
+            float: Confidence value between 0 and 1
+        """
+        # Calculate how well the area fits within the expected range
+        min_conf = self.config.min_object_size
+        max_conf = self.config.max_object_size
+        optimal_size = (min_conf + max_conf) / 2
+        
+        # Use gaussian-like function for smooth falloff
+        size_diff = abs(area - optimal_size)
+        size_range = (max_conf - min_conf) / 2
+        
+        confidence = np.exp(-(size_diff ** 2) / (2 * size_range ** 2))
+        return max(0.0, min(1.0, confidence))
+        
+    def _calculate_shape_confidence(self, contour: np.ndarray) -> float:
+        """
+        Calculate confidence based on shape regularity
+        
+        Args:
+            contour: Contour points array
+            
+        Returns:
+            float: Confidence value between 0 and 1
+        """
+        # Calculate contour metrics
+        area = cv2.contourArea(contour)
+        perimeter = cv2.arcLength(contour, True)
+        
+        if perimeter == 0:
+            return 0.0
+            
+        # Calculate circularity (1.0 for perfect circle)
+        circularity = 4 * np.pi * area / (perimeter * perimeter)
+        
+        # Calculate convexity
+        hull = cv2.convexHull(contour)
+        hull_area = cv2.contourArea(hull)
+        convexity = area / hull_area if hull_area > 0 else 0
+        
+        # Combine metrics
+        confidence = (circularity + convexity) / 2
+        return max(0.0, min(1.0, confidence))
+        
+    def _update_history(self, detection: Detection) -> None:
+        """
+        Update detection history
+        
+        Args:
+            detection: New detection to add to history
+        """
+        self.detection_history.append(detection)
+        if len(self.detection_history) > self.history_max_size:
+            self.detection_history.pop(0)
+            
+    def _update_adaptive_params(self, detection: Detection) -> None:
+        """
+        Update adaptive parameters based on detection success
+        
+        Args:
+            detection: Current detection
+        """
+        # Update brightness offset based on detection confidence
+        if detection.confidence > 0.8:
+            self.brightness_offset = max(-50, min(50, self.brightness_offset))
+            self.last_good_detection_time = detection.timestamp
+        else:
+            # Gradually adjust brightness if detections are poor
+            time_since_good = time.time() - self.last_good_detection_time
+            if time_since_good > 1.0:
+                self.brightness_offset += 5.0 if detection.confidence < 0.5 else -5.0
+                
+    def draw_detection(self, image: np.ndarray, detection: Detection) -> np.ndarray:
+        """
+        Draw detection results on the image
+        
+        Args:
+            image: Input image
+            detection: Detection result
+            
+        Returns:
+            np.ndarray: Image with detection visualization
+        """
+        output = image.copy()
+        
+        # Draw bounding box
+        x, y, w, h = detection.bounding_box
+        cv2.rectangle(
+            output,
+            (x, y),
+            (x + w, y + h),
+            (0, 255, 0),
+            2
+        )
+        
+        # Draw center point
+        cv2.circle(
+            output,
+            detection.center,
+            5,
+            (0, 0, 255),
+            -1
+        )
+        
+        # Add confidence text
+        text = f"Conf: {detection.confidence:.2f}"
+        cv2.putText(
+            output,
+            text,
+            (x, y - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            2
+        )
+        
+        # Add size information
+        size_text = f"Size: {detection.size:.0f}px"
+        cv2.putText(
+            output,
+            size_text,
+            (x, y - 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            2
+        )
+        
+        return output
 -------------------
 
 
 === ./as2_workspace/src/drone_tracker/drone_tracker/tracker_node.py ===
 
+#!/usr/bin/env python3
 
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
+from cv_bridge import CvBridge
+import numpy as np
+import cv2
+from typing import Optional, Tuple
+
+from .object_detector import ObjectDetector, DetectionConfig
+from .control_manager import ControlManager
+
+class TrackerNode(Node):
+    """
+    Main node for coordinating object detection and drone control.
+    Processes camera feed and manages tracking behavior.
+    """
+    
+    def __init__(self):
+        super().__init__('tracker_node')
+        
+        # Initialize CV bridge
+        self.bridge = CvBridge()
+        
+        # Initialize object detector with configuration from parameters
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('target_color', [0, 255, 0]),  # Default: gREEN
+                ('color_tolerance', 20),
+                ('min_object_size', 100),
+                ('max_object_size', 100000),
+                ('detection_threshold', 0.7),
+                ('enable_visualization', True)
+            ]
+        )
+        
+        # Create detector configuration
+        detector_config = DetectionConfig(
+            target_color=tuple(self.get_parameter('target_color').value),
+            color_tolerance=self.get_parameter('color_tolerance').value,
+            min_object_size=self.get_parameter('min_object_size').value,
+            max_object_size=self.get_parameter('max_object_size').value,
+            detection_threshold=self.get_parameter('detection_threshold').value
+        )
+        
+        self.detector = ObjectDetector(detector_config)
+        
+        # Initialize control manager
+        self.control_manager = ControlManager()
+        
+        # Create subscribers
+        self.image_sub = self.create_subscription(
+            Image,
+            '/camera/image_raw',  # From simulation camera
+            self.image_callback,
+            10
+        )
+        
+        # Create publishers
+        self.target_pose_pub = self.create_publisher(
+            PoseStamped,
+            '/drone0/target_pose',
+            10
+        )
+        
+        self.debug_image_pub = self.create_publisher(
+            Image,
+            '/tracker/debug_image',
+            10
+        )
+        
+        # Initialize tracking state
+        self.tracking_active = False
+        self.last_detection_time = self.get_clock().now()
+        self.lost_target_timeout = 1.0  # seconds
+        
+        # Camera parameters (from simulation)
+        self.camera_fov = 1.0472  # 60 degrees in radians
+        self.camera_width = 640
+        self.camera_height = 480
+        
+        self.get_logger().info('Tracker node initialized')
+        
+    def image_callback(self, msg: Image) -> None:
+        """
+        Process incoming camera images
+        
+        Args:
+            msg: ROS Image message
+        """
+        try:
+            # Convert ROS Image message to OpenCV image
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            
+            # Detect object in the image
+            detection = self.detector.detect(cv_image)  # Returns single Detection object
+            
+            if detection:
+                # Update tracking state
+                self.tracking_active = True
+                self.last_detection_time = self.get_clock().now()
+                
+                # Calculate 3D position from detection
+                target_pose = self.calculate_target_pose(detection)
+                
+                # Publish target pose
+                if target_pose is not None:
+                    self.target_pose_pub.publish(target_pose)
+                    
+                # Enable tracking in control manager
+                self.control_manager.enable_tracking(True)
+                
+            else:
+                # Check if we've lost the target
+                time_since_detection = (self.get_clock().now() - self.last_detection_time).nanoseconds / 1e9
+                                    
+                if time_since_detection > self.lost_target_timeout:
+                    self.tracking_active = False
+                    self.control_manager.enable_tracking(False)
+            
+            # Create and publish debug visualization
+            if self.get_parameter('enable_visualization').value:
+                debug_image = self.create_debug_visualization(cv_image, detection)
+                debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
+                self.debug_image_pub.publish(debug_msg)
+                
+        except Exception as e:
+            self.get_logger().error(f'Error processing image: {e}')
+
+
+    def calculate_target_pose(self, detection) -> Optional[PoseStamped]:
+        """
+        Calculate 3D pose from detection
+        
+        Args:
+            detection: Detection object from detector
+            
+        Returns:
+            Optional[PoseStamped]: Target pose or None if calculation fails
+        """
+        try:
+            # Get image center coordinates
+            center_x = self.camera_width / 2
+            center_y = self.camera_height / 2
+            
+            # Calculate angular offsets
+            x_offset = ((detection.center[0] - center_x) / 
+                       self.camera_width * self.camera_fov)
+            y_offset = ((detection.center[1] - center_y) / 
+                       self.camera_height * self.camera_fov)
+            
+            # Estimate distance based on object size
+            # This is a simple estimation - you might want to improve this
+            nominal_size = 100000  # Expected size at 1 meter
+            distance = np.sqrt(nominal_size / detection.size)
+            
+            # Calculate 3D position
+            x = distance * np.cos(y_offset) * np.sin(x_offset)
+            y = distance * np.cos(y_offset) * np.cos(x_offset)
+            z = distance * np.sin(y_offset)
+            
+            # Create pose message
+            pose_msg = PoseStamped()
+            pose_msg.header.stamp = self.get_clock().now().to_msg()
+            pose_msg.header.frame_id = 'camera_frame'
+            
+            pose_msg.pose.position.x = float(x)
+            pose_msg.pose.position.y = float(y)
+            pose_msg.pose.position.z = float(z)
+            
+            # Set orientation to identity quaternion
+            pose_msg.pose.orientation.w = 1.0
+            
+            return pose_msg
+            
+        except Exception as e:
+            self.get_logger().error(f'Error calculating target pose: {e}')
+            return None
+            
+    def create_debug_visualization(self, image, detection):
+        """
+        Create debug visualization image
+        
+        Args:
+            image: Original image
+            detection: Single detection object or None
+            
+        Returns:
+            Image with debug visualization
+        """
+        debug_image = image.copy()
+        
+        # Draw detection
+        if detection:
+            debug_image = self.detector.draw_detection(debug_image, detection)
+            
+        # Add tracking status
+        status_text = "Tracking: Active" if self.tracking_active else "Tracking: Lost"
+        cv2.putText(debug_image, status_text, (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
+        return debug_image
+        
+def main(args=None):
+    rclpy.init(args=args)
+    tracker = TrackerNode()
+    
+    try:
+        rclpy.spin(tracker)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        tracker.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
 -------------------
 
 
@@ -630,15 +1537,349 @@ install_scripts=$base/lib/drone_tracker
 -------------------
 
 
-=== ./as2_workspace/src/drone_tracker/test/test_detector.py ===
+=== ./as2_workspace/src/drone_tracker/test/test_tracking_system.py ===
 
+#!/usr/bin/env python3
 
--------------------
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import PoseStamped, Twist
+from nav_msgs.msg import Odometry
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
+import time
+from typing import Optional, List, Dict
+import matplotlib.pyplot as plt
 
+class TrackingSystemTester(Node):
+    """
+    Test node for verifying drone tracking system functionality.
+    Tests individual components and full system integration.
+    """
+    
+    def __init__(self):
+        super().__init__('tracking_system_tester')
+        
+        # Initialize CV bridge
+        self.bridge = CvBridge()
+        
+        # Test status
+        self.tests_status = {
+            'detector': False,
+            'control': False,
+            'tracking': False
+        }
+        
+        # Data collection for analysis
+        self.tracking_data = {
+            'target_positions': [],
+            'drone_positions': [],
+            'tracking_errors': [],
+            'timestamps': []
+        }
+        
+        # Subscribe to relevant topics
+        self.image_sub = self.create_subscription(
+            Image,
+            '/tracker/debug_image',
+            self.debug_image_callback,
+            10
+        )
+        
+        self.target_pose_sub = self.create_subscription(
+            PoseStamped,
+            '/drone0/target_pose',
+            self.target_pose_callback,
+            10
+        )
+        
+        self.drone_pose_sub = self.create_subscription(
+            Odometry,
+            '/drone0/odom',
+            self.drone_pose_callback,
+            10
+        )
+        
+        self.cmd_vel_sub = self.create_subscription(
+            Twist,
+            '/drone0/cmd_vel',
+            self.cmd_vel_callback,
+            10
+        )
+        
+        # Publishers for test inputs
+        self.test_image_pub = self.create_publisher(
+            Image,
+            '/camera/image_raw',
+            10
+        )
+        
+        # Initialize test parameters
+        self.start_time = time.time()
+        self.test_duration = 30.0  # seconds
+        self.detection_count = 0
+        self.control_commands_count = 0
+        
+        # Create test timer
+        self.test_timer = self.create_timer(1.0, self.test_status_callback)
+        
+        self.get_logger().info('Tracking System Tester initialized')
+        
+    def generate_test_image(self, target_pos: tuple) -> np.ndarray:
+        """
+        Generate test image with target object
+        
+        Args:
+            target_pos: (x, y) position of target in image
+            
+        Returns:
+            np.ndarray: Test image
+        """
+        # Create blank image
+        image = np.zeros((480, 640, 3), dtype=np.uint8)
+        
+        # Draw red circle as target
+        cv2.circle(image, target_pos, 20, (0, 0, 255), -1)
+        
+        return image
+        
+    def test_detector(self) -> bool:
+        """
+        Test object detector functionality
+        
+        Returns:
+            bool: True if test passed
+        """
+        self.get_logger().info('Testing object detector...')
+        
+        # Generate test images with target at different positions
+        test_positions = [
+            (320, 240),  # Center
+            (100, 100),  # Top-left
+            (540, 380),  # Bottom-right
+            (320, 100),  # Top
+            (320, 380)   # Bottom
+        ]
+        
+        detected_count = 0
+        for pos in test_positions:
+            # Generate and publish test image
+            test_image = self.generate_test_image(pos)
+            msg = self.bridge.cv2_to_imgmsg(test_image, "bgr8")
+            self.test_image_pub.publish(msg)
+            
+            # Wait for detection
+            time.sleep(0.5)
+            
+            if self.detection_count > 0:
+                detected_count += 1
+                self.detection_count = 0
+        
+        detection_success = detected_count >= len(test_positions) * 0.8
+        self.get_logger().info(f'Detector test {"passed" if detection_success else "failed"}')
+        return detection_success
+        
+    def test_control_response(self) -> bool:
+        """
+        Test control system response
+        
+        Returns:
+            bool: True if test passed
+        """
+        self.get_logger().info('Testing control response...')
+        
+        # Generate test target positions
+        test_positions = [
+            (0.0, 0.0, 2.0),    # Directly above
+            (1.0, 0.0, 2.0),    # Forward
+            (0.0, 1.0, 2.0),    # Right
+            (-1.0, 0.0, 2.0),   # Back
+            (0.0, -1.0, 2.0)    # Left
+        ]
+        
+        response_count = 0
+        for pos in test_positions:
+            # Create and publish target pose
+            pose_msg = PoseStamped()
+            pose_msg.header.stamp = self.get_clock().now().to_msg()
+            pose_msg.header.frame_id = 'camera_frame'
+            pose_msg.pose.position.x = pos[0]
+            pose_msg.pose.position.y = pos[1]
+            pose_msg.pose.position.z = pos[2]
+            pose_msg.pose.orientation.w = 1.0
+            
+            # Reset control command counter
+            self.control_commands_count = 0
+            
+            # Wait for control response
+            time.sleep(0.5)
+            
+            if self.control_commands_count > 0:
+                response_count += 1
+        
+        control_success = response_count >= len(test_positions) * 0.8
+        self.get_logger().info(f'Control test {"passed" if control_success else "failed"}')
+        return control_success
+        
+    def test_full_tracking(self) -> bool:
+        """
+        Test full tracking system integration
+        
+        Returns:
+            bool: True if test passed
+        """
+        self.get_logger().info('Testing full tracking system...')
+        
+        # Clear previous data
+        self.tracking_data = {
+            'target_positions': [],
+            'drone_positions': [],
+            'tracking_errors': [],
+            'timestamps': []
+        }
+        
+        # Run circular motion test
+        test_start_time = time.time()
+        while time.time() - test_start_time < self.test_duration:
+            # Generate circular target motion
+            t = time.time() - test_start_time
+            x = 2.0 * np.cos(t * 0.2)
+            y = 2.0 * np.sin(t * 0.2)
+            z = 2.0
+            
+            # Create target at position
+            image = self.generate_test_image(
+                (int(320 + x * 100), int(240 + y * 100))
+            )
+            msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
+            self.test_image_pub.publish(msg)
+            
+            time.sleep(0.03)  # ~30 Hz
+            
+        # Analyze tracking performance
+        if len(self.tracking_data['tracking_errors']) > 0:
+            mean_error = np.mean(self.tracking_data['tracking_errors'])
+            max_error = np.max(self.tracking_data['tracking_errors'])
+            
+            tracking_success = mean_error < 1.0 and max_error < 2.0
+            self.get_logger().info(f'Mean tracking error: {mean_error:.2f}m')
+            self.get_logger().info(f'Max tracking error: {max_error:.2f}m')
+            self.get_logger().info(f'Tracking test {"passed" if tracking_success else "failed"}')
+            
+            # Generate performance plots
+            self.plot_tracking_performance()
+            
+            return tracking_success
+        
+        return False
+        
+    def plot_tracking_performance(self) -> None:
+        """Generate plots of tracking performance"""
+        try:
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 10))
+            
+            # Plot positions
+            times = np.array(self.tracking_data['timestamps']) - self.tracking_data['timestamps'][0]
+            target_pos = np.array(self.tracking_data['target_positions'])
+            drone_pos = np.array(self.tracking_data['drone_positions'])
+            
+            ax1.plot(times, target_pos[:, 0], 'r-', label='Target X')
+            ax1.plot(times, target_pos[:, 1], 'g-', label='Target Y')
+            ax1.plot(times, drone_pos[:, 0], 'r--', label='Drone X')
+            ax1.plot(times, drone_pos[:, 1], 'g--', label='Drone Y')
+            ax1.set_xlabel('Time (s)')
+            ax1.set_ylabel('Position (m)')
+            ax1.legend()
+            ax1.grid(True)
+            ax1.set_title('Position Tracking')
+            
+            # Plot tracking error
+            errors = np.array(self.tracking_data['tracking_errors'])
+            ax2.plot(times, errors, 'b-', label='Tracking Error')
+            ax2.set_xlabel('Time (s)')
+            ax2.set_ylabel('Error (m)')
+            ax2.legend()
+            ax2.grid(True)
+            ax2.set_title('Tracking Error')
+            
+            plt.tight_layout()
+            plt.savefig('tracking_performance.png')
+            plt.close()
+            
+        except Exception as e:
+            self.get_logger().error(f'Error generating plots: {e}')
+        
+    def debug_image_callback(self, msg: Image) -> None:
+        """Handle debug image messages"""
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            self.detection_count += 1
+        except Exception as e:
+            self.get_logger().error(f'Error processing debug image: {e}')
+            
+    def target_pose_callback(self, msg: PoseStamped) -> None:
+        """Handle target pose messages"""
+        pos = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ])
+        self.tracking_data['target_positions'].append(pos)
+        self.tracking_data['timestamps'].append(time.time())
+        
+    def drone_pose_callback(self, msg: Odometry) -> None:
+        """Handle drone pose messages"""
+        pos = np.array([
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            msg.pose.pose.position.z
+        ])
+        self.tracking_data['drone_positions'].append(pos)
+        
+        # Calculate tracking error if we have target position
+        if len(self.tracking_data['target_positions']) > 0:
+            target_pos = self.tracking_data['target_positions'][-1]
+            error = np.linalg.norm(pos - target_pos)
+            self.tracking_data['tracking_errors'].append(error)
+        
+    def cmd_vel_callback(self, msg: Twist) -> None:
+        """Handle velocity command messages"""
+        self.control_commands_count += 1
+        
+    def test_status_callback(self) -> None:
+        """Periodic test status update"""
+        elapsed_time = time.time() - self.start_time
+        
+        if not self.tests_status['detector'] and elapsed_time > 1.0:
+            self.tests_status['detector'] = self.test_detector()
+            
+        elif not self.tests_status['control'] and elapsed_time > 5.0:
+            self.tests_status['control'] = self.test_control_response()
+            
+        elif not self.tests_status['tracking'] and elapsed_time > 10.0:
+            self.tests_status['tracking'] = self.test_full_tracking()
+            
+        # Check if all tests are complete
+        if all(self.tests_status.values()):
+            self.get_logger().info('All tests completed!')
+            self.test_timer.cancel()
 
-=== ./as2_workspace/src/drone_tracker/test/test_tracker.py ===
+def main(args=None):
+    rclpy.init(args=args)
+    tester = TrackingSystemTester()
+    
+    try:
+        rclpy.spin(tester)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        tester.destroy_node()
+        rclpy.shutdown()
 
-
+if __name__ == '__main__':
+    main()
 -------------------
 
 
@@ -708,8 +1949,8 @@ install_scripts=$base/lib/drone_tracker
   ros__parameters:
     # Object Detection Settings
     detection:
-      target_color: [255, 0, 0]  # RGB values for red ball
-      color_tolerance: 20  # RGB tolerance range
+      target_color: [0, 255, 0]  # RGB values for red ball
+      color_tolerance: 40  # RGB tolerance range
       min_object_size: 100  # Minimum pixel area
       max_object_size: 100000  # Maximum pixel area
       detection_threshold: 0.7  # Confidence threshold
@@ -897,5 +2138,28 @@ float32 confidence
     </model>
   </world>
 </sdf>
+-------------------
+
+
+=== ./build_files_tree.sh ===
+
+{
+    # First print the tree structure
+    tree -I 'log|install|build|.git'
+    
+    echo -e "\n=== FILE CONTENTS ===\n"
+    
+    # Then print contents of each file
+    find . -type f \
+        -not -path '*/log/*' \
+        -not -path '*/install/*' \
+        -not -path '*/build/*' \
+        -not -path '*/.git/*' \
+        -print0 | while IFS= read -r -d '' file; do
+        echo -e "\n=== $file ===\n"
+        cat "$file" 2>/dev/null || echo "[Binary file or unable to read]"
+        echo -e "\n-------------------\n"
+    done
+} > OUTPUT
 -------------------
 

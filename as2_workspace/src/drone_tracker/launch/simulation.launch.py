@@ -61,7 +61,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Bridge between Gazebo and ROS
+    # Bridge between ROS2 and Gazebo Garden
     bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -69,12 +69,31 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'use_sim_time': use_sim_time,
-            # Add required bridges here
             'bridge_topics': [
-                # Add topic remappings as needed
+                # Clock synchronization
                 '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+                
+                # TF transforms
                 '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
-                '/camera@sensor_msgs/msg/Image[gz.msgs.Image',
+                '/tf_static@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
+                
+                # Camera topics
+                f'/{namespace}/camera/image_raw@sensor_msgs/msg/Image[gz.msgs.Image',
+                f'/{namespace}/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo',
+                
+                # Drone state and control
+                f'/{namespace}/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
+                f'/{namespace}/imu@sensor_msgs/msg/Imu[gz.msgs.IMU',
+                f'/{namespace}/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
+                
+                # Platform status
+                f'/{namespace}/status@std_msgs/msg/String[gz.msgs.StringMsg',
+                
+                # Target tracking
+                f'/{namespace}/target_pose@geometry_msgs/msg/PoseStamped[gz.msgs.Pose',
+                
+                # Visualization and debug
+                f'/{namespace}/debug/markers@visualization_msgs/msg/MarkerArray[gz.msgs.Marker_V'
             ]
         }]
     )

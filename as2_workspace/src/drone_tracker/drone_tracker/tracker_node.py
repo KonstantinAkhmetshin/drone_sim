@@ -96,19 +96,16 @@ class TrackerNode(Node):
             # Convert ROS Image message to OpenCV image
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             
-            # Detect objects in the image
-            detections = self.detector.detect(cv_image)
+            # Detect object in the image
+            detection = self.detector.detect(cv_image)  # Returns single Detection object
             
-            if detections:
-                # Get the detection with highest confidence
-                best_detection = max(detections, key=lambda d: d.confidence)
-                
+            if detection:
                 # Update tracking state
                 self.tracking_active = True
                 self.last_detection_time = self.get_clock().now()
                 
                 # Calculate 3D position from detection
-                target_pose = self.calculate_target_pose(best_detection)
+                target_pose = self.calculate_target_pose(detection)
                 
                 # Publish target pose
                 if target_pose is not None:
@@ -119,22 +116,22 @@ class TrackerNode(Node):
                 
             else:
                 # Check if we've lost the target
-                time_since_detection = (self.get_clock().now() - 
-                                     self.last_detection_time).nanoseconds / 1e9
-                                     
+                time_since_detection = (self.get_clock().now() - self.last_detection_time).nanoseconds / 1e9
+                                    
                 if time_since_detection > self.lost_target_timeout:
                     self.tracking_active = False
                     self.control_manager.enable_tracking(False)
             
             # Create and publish debug visualization
             if self.get_parameter('enable_visualization').value:
-                debug_image = self.create_debug_visualization(cv_image, detections)
+                debug_image = self.create_debug_visualization(cv_image, detection)
                 debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
                 self.debug_image_pub.publish(debug_msg)
                 
         except Exception as e:
             self.get_logger().error(f'Error processing image: {e}')
-            
+
+
     def calculate_target_pose(self, detection) -> Optional[PoseStamped]:
         """
         Calculate 3D pose from detection
@@ -184,28 +181,28 @@ class TrackerNode(Node):
             self.get_logger().error(f'Error calculating target pose: {e}')
             return None
             
-    def create_debug_visualization(self, image, detections):
+    def create_debug_visualization(self, image, detection):
         """
         Create debug visualization image
         
         Args:
             image: Original image
-            detections: List of detections
+            detection: Single detection object or None
             
         Returns:
             Image with debug visualization
         """
         debug_image = image.copy()
         
-        # Draw detections
-        if detections:
-            debug_image = self.detector.draw_detections(debug_image, detections)
+        # Draw detection
+        if detection:
+            debug_image = self.detector.draw_detection(debug_image, detection)
             
         # Add tracking status
         status_text = "Tracking: Active" if self.tracking_active else "Tracking: Lost"
         cv2.putText(debug_image, status_text, (10, 30),
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                   
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                
         return debug_image
         
 def main(args=None):
