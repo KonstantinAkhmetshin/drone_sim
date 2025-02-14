@@ -1,6 +1,6 @@
 {
     # First print the tree structure
-    tree -I 'log|install|build|.git'
+    tree -I 'log|install|build|.git|AirSimNH|venv|__pycache__'
     
     echo -e "\n=== FILE CONTENTS ===\n"
     
@@ -10,6 +10,9 @@
         -not -path '*/install/*' \
         -not -path '*/build/*' \
         -not -path '*/.git/*' \
+        -not -path '*/AirSimNH/*' \
+        -not -path '*/venv/*' \
+        -not -path '*/__pycache__/*' \
         -print0 | while IFS= read -r -d '' file; do
         echo -e "\n=== $file ===\n"
         cat "$file" 2>/dev/null || echo "[Binary file or unable to read]"
