@@ -1,1 +1,0 @@
-ros2 run drone_tracker test_tracking_system.py

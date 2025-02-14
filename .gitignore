@@ -24,6 +24,8 @@ wheels/
 install/
 log/
 build/
+AirSimNH/
+venv/
 
 # IDEs
 .idea/

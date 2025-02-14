@@ -1,1 +1,1 @@
-ros2 launch drone_tracker simulation.launch.py
+./AirSimNH/LinuxNoEditor/AirSimNH.sh -windowed
