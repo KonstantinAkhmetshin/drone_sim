@@ -11,9 +11,9 @@ import numpy as np
 import time
 from typing import Tuple
 
-from .camera import AirSimCamera
-from .controller import AirSimController
-from .detector import ObjectDetector
+from camera import AirSimCamera
+from controller import AirSimController
+from detector import ObjectDetector
 
 class ObjectTracker:
     def __init__(self, target_color: Tuple[int, int, int]):

@@ -5,9 +5,15 @@ import unittest
 import numpy as np
 import cv2
 from unittest.mock import MagicMock, patch
+import os
+import sys
 
-from drone_tracker.src.detector import ObjectDetector
-from drone_tracker.src.tracker import ObjectTracker
+# Add the src directory to the Python path
+src_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, src_path)
+
+# Now import the modules
+from detector import ObjectDetector
 
 class TestObjectDetector(unittest.TestCase):
     def setUp(self):
@@ -29,6 +35,9 @@ class TestObjectDetector(unittest.TestCase):
         # Convert to HSV (which is what the detector expects)
         img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         
+        # Save debug image
+        cv2.imwrite('debug_input.png', cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR))
+        
         # Detect object
         bbox = self.detector.detect_color(img_hsv)
         
@@ -36,6 +45,7 @@ class TestObjectDetector(unittest.TestCase):
         self.assertIsNotNone(bbox, "Detection failed - no bounding box returned")
         if bbox is not None:  # Additional debug info if test fails
             x, y, w, h = bbox
+            print(f"Detected bbox: x={x}, y={y}, w={w}, h={h}")
             self.assertTrue(90 <= x <= 110, f"X coordinate {x} outside expected range")
             self.assertTrue(90 <= y <= 110, f"Y coordinate {y} outside expected range")
             self.assertTrue(90 <= w <= 110, f"Width {w} outside expected range")
