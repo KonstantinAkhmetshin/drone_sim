@@ -1,6 +1,6 @@
 {
     # First print the tree structure
-    tree -I 'log|install|build|.git|AirSimNH|venv|__pycache__'
+    tree -I 'log|install|build|.git|AirSimNH|venv|__pycache__|.png'
     
     echo -e "\n=== FILE CONTENTS ===\n"
     
@@ -10,6 +10,7 @@
         -not -path '*/install/*' \
         -not -path '*/build/*' \
         -not -path '*/.git/*' \
+        -not -path '*/.png/*' \
         -not -path '*/AirSimNH/*' \
         -not -path '*/venv/*' \
         -not -path '*/__pycache__/*' \
@@ -18,4 +19,4 @@
         cat "$file" 2>/dev/null || echo "[Binary file or unable to read]"
         echo -e "\n-------------------\n"
     done
-} > OUTPUT
+} > porject_structure.info

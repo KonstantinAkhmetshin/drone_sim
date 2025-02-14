@@ -19,7 +19,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+*.png
+porject_structure.info
 # ROS
 install/
 log/

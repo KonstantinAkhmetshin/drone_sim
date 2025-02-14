@@ -10,12 +10,14 @@ Supports color-based and feature-based detection methods.
 """
 import cv2
 import numpy as np
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple
+from entity.detector_config import DetectorConfig
+
 
 class ObjectDetector:
     """Detects objects using various computer vision methods."""
     
-    def __init__(self, config: Dict):
+    def __init__(self, config: DetectorConfig):
         """
         Initialize detector with configuration parameters.
         
@@ -24,10 +26,10 @@ class ObjectDetector:
                    (color ranges, thresholds, etc.)
         """
         self.config = config
-        self.target_color = np.array(config["target_color"])
-        self.color_tolerance = config["color_tolerance"]
-        self.min_size = config["min_object_size"]
-        self.max_size = config["max_object_size"]
+        self.target_color = np.array(config.target_color)
+        self.color_tolerance = config.color_tolerance
+        self.min_size = config.min_object_size
+        self.max_size = config.max_object_size
         
     def detect_color(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
         """

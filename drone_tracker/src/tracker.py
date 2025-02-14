@@ -9,14 +9,14 @@ Simple object tracking system using AirSim.
 import cv2
 import numpy as np
 import time
-from typing import Tuple
 
 from camera import AirSimCamera
 from controller import AirSimController
 from detector import ObjectDetector
+from entity.detector_config import DetectorConfig
 
 class ObjectTracker:
-    def __init__(self, target_color: Tuple[int, int, int]):
+    def __init__(self, detectorConfig: DetectorConfig):
         """
         Initialize tracking system.
         Args:
@@ -24,7 +24,7 @@ class ObjectTracker:
         """
         self.camera = AirSimCamera()
         self.controller = AirSimController()
-        self.detector = ObjectDetector(target_color)
+        self.detector = ObjectDetector(detectorConfig)
         
         # Control parameters
         self.max_speed = 2.0  # m/s
