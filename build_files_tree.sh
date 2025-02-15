@@ -1,6 +1,6 @@
 {
     # First print the tree structure
-    tree -I 'log|install|build|.git|AirSimNH|venv|__pycache__|.png'
+    tree -I 'log|install|build|.git|AirSimNH|venv|__pycache__|*.png'
     
     echo -e "\n=== FILE CONTENTS ===\n"
     
@@ -10,7 +10,7 @@
         -not -path '*/install/*' \
         -not -path '*/build/*' \
         -not -path '*/.git/*' \
-        -not -path '*/.png/*' \
+        -not -name '*.png' \
         -not -path '*/AirSimNH/*' \
         -not -path '*/venv/*' \
         -not -path '*/__pycache__/*' \
