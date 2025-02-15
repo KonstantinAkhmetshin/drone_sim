@@ -25,7 +25,7 @@ def spawn_basic_target():
         
         # Calculate spawn position (3 meters in front, at same height)
         spawn_pos = {
-            "x": float(pos.x_val + 3.0),
+            "x": float(pos.x_val + 1.0),
             "y": float(pos.y_val),
             "z": float(pos.z_val)
         }
@@ -33,14 +33,11 @@ def spawn_basic_target():
         print(f"Attempting to spawn object at: x={spawn_pos['x']}, y={spawn_pos['y']}, z={spawn_pos['z']}")
         
         # Try to spawn a basic cube
-        success = client.simSpawnObject(
-            "GreenCube",  # Name
-            "Cube",      # Object type
-            spawn_pos,   # Position
-            {"scale": {"x": 0.5, "y": 0.5, "z": 0.5}},  # Scale (50cm cube)
-            None        # No custom coloring initially
-        )
-        
+        scale = airsim.Vector3r(1.0, 1.0, 1.0)
+        pose = airsim.Pose(position_val=airsim.Vector3r(5.0, 0.0, 0.0))
+         
+        success = client.simSpawnObject("Cube", "cube", pose, scale, True)
+
         if success:
             print("Successfully spawned object!")
             
