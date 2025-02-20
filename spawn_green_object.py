@@ -23,20 +23,14 @@ def spawn_basic_target():
         state = client.getMultirotorState()
         pos = state.kinematics_estimated.position
         
-        # Calculate spawn position (3 meters in front, at same height)
-        spawn_pos = {
-            "x": float(pos.x_val + 1.0),
-            "y": float(pos.y_val),
-            "z": float(pos.z_val)
-        }
-        
-        print(f"Attempting to spawn object at: x={spawn_pos['x']}, y={spawn_pos['y']}, z={spawn_pos['z']}")
         
         # Try to spawn a basic cube
         scale = airsim.Vector3r(1.0, 1.0, 1.0)
-        pose = airsim.Pose(position_val=airsim.Vector3r(5.0, 0.0, 0.0))
+        pose = airsim.Pose(position_val=airsim.Vector3r(10.0, 0.0, 0.0))
          
-        success = client.simSpawnObject("Cube", "cube", pose, scale, True)
+        objectName = "Sphere" 
+        asssrtName = "sphere"
+        success = client.simSpawnObject(objectName, asssrtName, pose, scale, True)
 
         if success:
             print("Successfully spawned object!")
@@ -58,14 +52,4 @@ def spawn_basic_target():
         return False
 
 if __name__ == "__main__":
-    print("Starting basic spawn test...")
-    print("Make sure AirSim is running and drone is visible")
-    input("Press Enter to continue...")
-    
     result = spawn_basic_target()
-    if not result:
-        print("\nTroubleshooting tips:")
-        print("1. Make sure AirSim is fully loaded")
-        print("2. Check if drone is visible in the environment")
-        print("3. Try restarting AirSim")
-        print("4. Make sure you're running in the correct environment")

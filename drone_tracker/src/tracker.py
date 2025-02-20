@@ -1,10 +1,6 @@
 """
-Simple object tracking system using AirSim.
-
-
--Combines detection and control
--Uses proportional control to keep object centered in frame
--Has configurable parameters for tracking behavior
+Simple sphere tracking system using AirSim.
+Uses circle detection to track spherical objects and maintain them in frame center.
 """
 import cv2
 import numpy as np
@@ -16,18 +12,18 @@ from detector import ObjectDetector
 from entity.detector_config import DetectorConfig
 
 class ObjectTracker:
-    def __init__(self, detectorConfig: DetectorConfig):
+    def __init__(self, detector_config: DetectorConfig):
         """
         Initialize tracking system.
         Args:
-            target_color: HSV color to track
+            detector_config: Configuration for the detector
         """
         self.camera = AirSimCamera()
         self.controller = AirSimController()
-        self.detector = ObjectDetector(detectorConfig)
+        self.detector = ObjectDetector(detector_config)
         
-        # Control parameters
-        self.max_speed = 2.0  # m/s
+        # Control parameters - reduced for smoother tracking
+        self.max_speed = 1.0  # m/s 
         self.frame_width = 640
         self.frame_height = 480
         
@@ -44,8 +40,8 @@ class ObjectTracker:
         if frame is None:
             return
             
-        # Detect object
-        bbox = self.detector.detect_color(frame)
+        # Detect sphere
+        bbox = self.detector.detect_object(frame)
         if bbox is None:
             self.controller.stop()
             return
@@ -59,13 +55,13 @@ class ObjectTracker:
         error_x = (center_x - self.frame_width/2) / (self.frame_width/2)
         error_y = (center_y - self.frame_height/2) / (self.frame_height/2)
         
-        # Calculate velocities (simple proportional control)
-        vx = -error_x * self.max_speed  # Forward/backward
-        vy = -error_y * self.max_speed  # Left/right
+        # Calculate velocities with smoother control
+        vx = -error_x * self.max_speed
+        vy = -error_y * self.max_speed
         vz = 0  # Maintain altitude
         
-        # Apply velocity commands
-        self.controller.move_by_velocity(vx, vy, vz, 0.1)
+        # Apply velocity commands with longer duration for smoother movement
+        self.controller.move_by_velocity(vx, vy, vz, 0.2)  
         
     def stop(self):
         """Stop tracking and land."""

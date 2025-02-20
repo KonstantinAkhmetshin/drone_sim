@@ -1,72 +1,62 @@
-# File: src/detector.py
 """
-Object detection module using OpenCV for visual tracking.
-Supports color-based and feature-based detection methods.
-
--Uses OpenCV for color-based object detection
--Converts images to HSV color space for more robust color detection
--Can detect objects within specified size constraints
--Returns bounding box coordinates of detected objects
+Object detection module using OpenCV for sphere detection.
+Uses Hough Circle Transform to detect circular/spherical objects in the image.
 """
 import cv2
 import numpy as np
 from typing import Optional, Tuple
 from entity.detector_config import DetectorConfig
 
-
 class ObjectDetector:
-    """Detects objects using various computer vision methods."""
+    """Detects spherical objects using circle detection."""
     
     def __init__(self, config: DetectorConfig):
         """
         Initialize detector with configuration parameters.
         
         Args:
-            config: Dictionary containing detection parameters
-                   (color ranges, thresholds, etc.)
+            config: Configuration parameters for detection
         """
         self.config = config
-        self.target_color = np.array(config.target_color)
-        self.color_tolerance = config.color_tolerance
-        self.min_size = config.min_object_size
-        self.max_size = config.max_object_size
+        self.min_radius = config.min_object_size // 2
+        self.max_radius = config.max_object_size // 2
         
-    def detect_color(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def detect_object(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
         """
-        Detect objects based on color thresholding.
+        Detect spherical objects using Hough Circle Transform.
         
         Args:
             frame: Input image frame
             
         Returns:
-            Tuple of (x, y, width, height) of detected object or None
+            Tuple of (x, y, width, height) of detected sphere or None
         """
-        # Convert to HSV for better color detection
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        # Convert to grayscale
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Create color mask
-        lower = np.array([self.target_color[0] - self.color_tolerance,
-                         50, 50])
-        upper = np.array([self.target_color[0] + self.color_tolerance,
-                         255, 255])
-        mask = cv2.inRange(hsv, lower, upper)
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (9, 9), 2)
         
-        # Find contours
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
-                                     cv2.CHAIN_APPROX_SIMPLE)
+        # Detect circles using Hough Circle Transform
+        circles = cv2.HoughCircles(
+            blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1,  # Resolution ratio
+            minDist=50,  # Min distance between circles
+            param1=50,  # Upper threshold for edge detection
+            param2=30,  # Threshold for circle detection
+            minRadius=self.min_radius,
+            maxRadius=self.max_radius
+        )
         
-        # Find largest contour within size constraints
-        largest_contour = None
-        largest_area = 0
-        
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if self.min_size < area < self.max_size and area > largest_area:
-                largest_contour = contour
-                largest_area = area
-                
-        if largest_contour is not None:
-            x, y, w, h = cv2.boundingRect(largest_contour)
-            return (x, y, w, h)
-        
+        if circles is not None:
+            # Convert to integer coordinates
+            circles = np.uint16(np.around(circles))
+            
+            # Get the first (most prominent) circle
+            x, y, r = circles[0][0]
+            
+            # Convert to bounding box format (x, y, width, height)
+            return (int(x - r), int(y - r), int(2 * r), int(2 * r))
+            
         return None
