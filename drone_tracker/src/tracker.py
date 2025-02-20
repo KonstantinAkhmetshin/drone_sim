@@ -2,8 +2,6 @@
 Simple sphere tracking system using AirSim.
 Uses circle detection to track spherical objects and maintain them in frame center.
 """
-import cv2
-import numpy as np
 import time
 
 from camera import AirSimCamera
