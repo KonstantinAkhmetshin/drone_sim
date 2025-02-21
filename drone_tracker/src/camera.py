@@ -2,9 +2,9 @@
 AirSim camera interface for capturing drone camera images.
 
 -Interfaces with AirSim for capturing drone camera frames
--Properly decodes compressed image data
+-Returns grayscale images for shape-based tracking
 -Handles image resizing and conversion
--Has error handling for failed frame captures
+-Optimized for circle/sphere detection
 """
 import airsim
 import numpy as np
@@ -17,7 +17,7 @@ class AirSimCamera:
         self.client = airsim.MultirotorClient()
         self.client.confirmConnection()
         
-        # Target resolution
+        # Target resolution - can be reduced for better performance
         self.width = 640
         self.height = 480
         print(f"Initializing camera with target resolution: {self.width}x{self.height}")
@@ -25,30 +25,28 @@ class AirSimCamera:
     def capture_frame(self) -> Optional[np.ndarray]:
         """
         Capture a frame from AirSim drone camera.
-        Returns: RGB numpy array or None if capture fails
+        Returns: Grayscale numpy array or None if capture fails
         """
         try:
-            # Get RGB image from front camera
+            # Get image from front camera
             response = self.client.simGetImage("0", airsim.ImageType.Scene)
             if not response:
                 print("No image received from AirSim")
                 return None
 
-            # Decode the compressed image data
+            # Decode the compressed image data directly to grayscale
             img_arr = np.frombuffer(response, np.uint8)
-            img_bgr = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+            img_gray = cv2.imdecode(img_arr, cv2.IMREAD_GRAYSCALE)
             
-            if img_bgr is None:
+            if img_gray is None:
                 print("Failed to decode image data")
                 return None
 
             # Resize if necessary
-            if img_bgr.shape[:2] != (self.height, self.width):
-                img_bgr = cv2.resize(img_bgr, (self.width, self.height))
+            if img_gray.shape != (self.height, self.width):
+                img_gray = cv2.resize(img_gray, (self.width, self.height))
 
-            # Convert BGR to RGB
-            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-            return img_rgb
+            return img_gray
 
         except Exception as e:
             print(f"Failed to capture frame: {str(e)}")

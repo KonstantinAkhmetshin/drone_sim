@@ -1,8 +1,8 @@
 """
-AirSim drone controller for basic movement commands.
+Enhanced AirSim drone controller optimized for tracking movement.
 """
 import airsim
-import time
+import numpy as np
 from typing import Tuple
 
 class AirSimController:
@@ -11,24 +11,58 @@ class AirSimController:
         self.client = airsim.MultirotorClient()
         self.client.confirmConnection()
         
+        # Control parameters
+        self.max_tilt_angle = 45.0  # Increased for more aggressive movement
+        self.takeoff_height = -2.0   # meters
+        self.hover_height = -2.0     # meters
+        
     def start(self):
         """Initialize drone for flight."""
+        print("Enabling API control...")
         self.client.enableApiControl(True)
         self.client.armDisarm(True)
+        
+        # Configure vehicle settings for more aggressive movement
+        self.client.simSetVehiclePose(
+            airsim.Pose(airsim.Vector3r(0, 0, self.takeoff_height)),
+            True
+        )
         
     def takeoff(self):
         """Take off safely."""
         print("Taking off...")
         self.client.takeoffAsync().join()
+        print("Takeoff complete")
         
     def move_by_velocity(self, vx: float, vy: float, vz: float, duration: float):
         """
-        Move drone by specified velocity.
+        Move drone by specified velocity with improved control.
+        
         Args:
             vx, vy, vz: velocity components in m/s
             duration: time to maintain velocity in seconds
         """
-        self.client.moveByVelocityAsync(vx, vy, vz, duration)
+        # Clean velocity commands
+        vx = float(np.clip(vx, -10, 10))
+        vy = float(np.clip(vy, -10, 10))
+        vz = float(np.clip(vz, -2, 2))
+        
+        try:
+            # Move with yaw rate based on lateral movement
+            yaw_rate = 0.0
+            # if abs(vx) > 0.1 or abs(vy) > 0.1:
+            #     yaw_rate = np.arctan2(vy, vx) * 30.0  # Convert to degrees/second
+            
+            self.client.moveByVelocityAsync(
+                vx, vy, vz,
+                duration,
+                drivetrain=airsim.DrivetrainType.MaxDegreeOfFreedom,
+                yaw_mode=airsim.YawMode(True, yaw_rate)
+            ).join()
+            
+        except Exception as e:
+            print(f"Movement error: {str(e)}")
+            self.stop()
         
     def get_position(self) -> Tuple[float, float, float]:
         """Get current position of the drone."""
@@ -36,11 +70,13 @@ class AirSimController:
         pos = state.kinematics_estimated.position
         return (pos.x_val, pos.y_val, pos.z_val)
         
+    def stop(self):
+        """Stop movement smoothly."""
+        print("Stopping movement...")
+        self.client.hoverAsync().join()
+        
     def land(self):
         """Land the drone safely."""
         print("Landing...")
         self.client.landAsync().join()
-        
-    def stop(self):
-        """Stop all movement."""
-        self.client.hoverAsync().join()
+        self.client.armDisarm(False)

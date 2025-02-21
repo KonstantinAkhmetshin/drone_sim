@@ -1,37 +1,16 @@
 """
-Test script for sphere tracking in AirSim simulation.
-This script:
-1. Spawns a green sphere in the simulation
-2. Initializes the drone tracking system
-3. Starts tracking the sphere
+Main script for sphere tracking with fixed visualization.
 """
-
 import time
-import sys
-import os
-from pathlib import Path
-
-# Add the drone_tracker package to Python path
-project_root = Path(__file__).parent.parent
-sys.path.append(str(project_root / "drone_tracker"))
-
+import airsim
 from tracker import ObjectTracker
 from visualization import TrackingVisualizer
 from entity.detector_config import DetectorConfig
-import airsim
 
 def spawn_sphere(client):
-    """
-    Spawn a green sphere in front of the drone.
-    
-    Args:
-        client: AirSim client instance
-    Returns:
-        bool: True if spawn successful, False otherwise
-    """
+    """Spawn a sphere in front of the drone."""
     try:
-        # Spawn sphere 10 meters in front of drone
-        scale = airsim.Vector3r(1.0, 1.0, 1.0)  # 1 meter sphere
+        scale = airsim.Vector3r(1.0, 1.0, 1.0)
         pose = airsim.Pose(position_val=airsim.Vector3r(10.0, 0.0, -2.0))
         success = client.simSpawnObject("Sphere", "sphere", pose, scale, True)
         
@@ -59,8 +38,8 @@ def main():
             
         # Initialize tracking system
         config = DetectorConfig(
-            min_object_size=20,   # Minimum size in pixels
-            max_object_size=200   # Maximum size in pixels
+            min_object_size=15,
+            max_object_size=200
         )
         
         tracker = ObjectTracker(config)
@@ -68,7 +47,6 @@ def main():
         
         print("Starting tracking system...")
         tracker.start()
-        time.sleep(2)  # Wait for stable takeoff
         
         print("Tracking sphere... Press Ctrl+C to stop")
         while True:
@@ -81,18 +59,23 @@ def main():
             # Detect and track sphere
             bbox = tracker.detector.detect_object(frame)
             
+            # Get distance if object detected
+            distance = None
+            if bbox is not None:
+                distance = tracker.estimate_distance(bbox[2])
+            
             # Update visualization
             vis_frame = visualizer.draw_tracking_info(
-                frame, 
+                frame,
                 bbox,
-                {'position': tracker.controller.get_position()}
+                distance=distance
             )
             visualizer.show(vis_frame)
             
             # Update drone position
             tracker.update()
             
-            # Small delay to prevent overwhelming the simulation
+            # Small delay
             time.sleep(0.1)
             
     except KeyboardInterrupt:
@@ -102,8 +85,6 @@ def main():
     finally:
         if 'tracker' in locals():
             tracker.stop()
-        if 'visualizer' in locals():
-            visualizer.close()
 
 if __name__ == "__main__":
     main()
