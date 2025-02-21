@@ -27,11 +27,12 @@ class ObjectTracker:
         
         # Control parameters - reduced for stability
         self.max_centering_speed = 0.3   # Maximum speed for centering
-        self.forward_speed = 1.0         # Slower forward speed
+        self.forward_speed = 1.0         # Forward speed when centered
         self.min_speed = 0.05           # Minimum speed threshold
         
         # Movement thresholds
-        self.centering_threshold = 0.15   # Must be centered within 15% before moving forward
+        self.centering_threshold_x = 0.5   # Horizontal centering threshold (20%)
+        self.centering_threshold_y = 0.5   # Vertical centering threshold (30%)
         self.deadzone = 0.01             # Small deadzone for stability
         
         # Smoothing
@@ -77,8 +78,8 @@ class ObjectTracker:
         
     def is_centered(self, error_x: float, error_y: float) -> bool:
         """Check if target is well-centered."""
-        return (abs(error_x) < self.centering_threshold and 
-                abs(error_y) < self.centering_threshold)
+        return (abs(error_x) < self.centering_threshold_x and 
+                abs(error_y) < self.centering_threshold_y)
         
     def update(self):
         """Main tracking update loop with stable movement."""
@@ -110,17 +111,20 @@ class ObjectTracker:
             distance = self.estimate_distance(w)
             print(f"Distance to sphere: {distance:.2f}m")
             
-            # Calculate raw velocities
-            vx = self.calculate_velocity(error_x, 'X')
-            vy = -self.calculate_velocity(error_y, 'Y')
-            
-            # Determine forward speed based on centering
-            if self.is_centered(error_x, error_y):
-                print("Target centered - moving forward")
-                vx = self.forward_speed
+            # Calculate base forward speed based on horizontal centering
+            if abs(error_x) < self.centering_threshold_x:
+                # If horizontally centered, move forward with full speed
+                base_forward = self.forward_speed
             else:
-                print("Centering target")
-                vx = 0.0  # Stop forward movement while centering
+                # Partial forward movement while centering
+                base_forward = self.forward_speed * (1 - abs(error_x)/self.centering_threshold_x) * 0.5
+                
+            # Combine forward movement with centering adjustment
+            vx = base_forward
+            vy = -self.calculate_velocity(error_y, 'Y')
+            vz = 0.0  # Initialize vertical velocity
+            
+            print(f"Forward speed: {base_forward:.2f}, Total vx: {vx:.2f}")
             
             # Apply smoothing
             vx = self.smooth_velocity(vx, self.last_vx)
