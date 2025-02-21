@@ -1,5 +1,5 @@
 """
-Enhanced tracking system with stable movement control.
+Enhanced tracking system with stable movement control and yaw correction.
 """
 import time
 import numpy as np
@@ -29,6 +29,8 @@ class ObjectTracker:
         self.max_centering_speed = 0.3   # Maximum speed for centering
         self.forward_speed = 1.0         # Forward speed when centered
         self.min_speed = 0.05           # Minimum speed threshold
+        self.max_yaw_rate = 5.0        # Maximum yaw rate in degrees/second
+        self.yaw_deadzone = 0.02        # Deadzone for yaw corrections (normalized)
         
         # Movement thresholds
         self.centering_threshold_x = 0.5   # Horizontal centering threshold (20%)
@@ -111,6 +113,19 @@ class ObjectTracker:
             distance = self.estimate_distance(w)
             print(f"Distance to sphere: {distance:.2f}m")
             
+            if(distance < 0.1):
+                print("TARGET APPROACHED!!!")
+                self.controller.stop()
+                return
+
+            # Calculate yaw correction based on horizontal error
+            yaw_rate = 0.0
+            if abs(error_x) > self.yaw_deadzone:
+                # Convert normalized error to yaw rate
+                # error_x range is -1 to 1, scale to max yaw rate
+                yaw_rate = error_x * self.max_yaw_rate  # Negative because positive yaw is counterclockwise
+                print(f"Applying yaw correction: {yaw_rate:.2f} deg/s")
+            
             # Calculate base forward speed based on horizontal centering
             if abs(error_x) < self.centering_threshold_x:
                 # If horizontally centered, move forward with full speed
@@ -122,7 +137,7 @@ class ObjectTracker:
             # Combine forward movement with centering adjustment
             vx = base_forward
             vy = -self.calculate_velocity(error_y, 'Y')
-            vz = 0.0  # Initialize vertical velocity
+            vz = 0.2  # Initialize vertical velocity
             
             print(f"Forward speed: {base_forward:.2f}, Total vx: {vx:.2f}")
             
@@ -136,9 +151,9 @@ class ObjectTracker:
             self.last_vy = vy
             self.last_vz = vz
             
-            # Apply velocity commands
-            print(f"Commanding velocity: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f}")
-            self.controller.move_by_velocity(vx, vy, vz, 0.1)
+            # Apply velocity commands with yaw correction
+            print(f"Commanding velocity: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f}, yaw_rate={yaw_rate:.2f}")
+            self.controller.move_by_velocity(vx, vy, vz, yaw_rate, 0.5)
             
         except Exception as e:
             print(f"Error in tracking update: {str(e)}")

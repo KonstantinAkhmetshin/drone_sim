@@ -39,7 +39,7 @@ def main():
         # Initialize tracking system
         config = DetectorConfig(
             min_object_size=15,
-            max_object_size=200
+            max_object_size=300
         )
         
         tracker = ObjectTracker(config)

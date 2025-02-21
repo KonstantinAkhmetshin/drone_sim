@@ -34,25 +34,22 @@ class AirSimController:
         self.client.takeoffAsync().join()
         print("Takeoff complete")
         
-    def move_by_velocity(self, vx: float, vy: float, vz: float, duration: float):
+    def move_by_velocity(self, vx: float, vy: float, vz: float, yaw_rate: float, duration: float):
         """
-        Move drone by specified velocity with improved control.
+        Move drone by specified velocity with yaw control.
         
         Args:
             vx, vy, vz: velocity components in m/s
+            yaw_rate: angular velocity in degrees/second
             duration: time to maintain velocity in seconds
         """
         # Clean velocity commands
         vx = float(np.clip(vx, -10, 10))
         vy = float(np.clip(vy, -10, 10))
         vz = float(np.clip(vz, -2, 2))
+        yaw_rate = float(np.clip(yaw_rate, -45, 45))  # Limit yaw rate to ±45 degrees/sec
         
         try:
-            # Move with yaw rate based on lateral movement
-            yaw_rate = 0.0
-            # if abs(vx) > 0.1 or abs(vy) > 0.1:
-            #     yaw_rate = np.arctan2(vy, vx) * 30.0  # Convert to degrees/second
-            
             self.client.moveByVelocityAsync(
                 vx, vy, vz,
                 duration,
