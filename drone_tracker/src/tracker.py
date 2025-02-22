@@ -8,6 +8,7 @@ from camera import AirSimCamera
 from controller import AirSimController
 from detector import ObjectDetector
 from entity.detector_config import DetectorConfig
+from typing import Tuple
 
 class ObjectTracker:
     def __init__(self, detector_config: DetectorConfig):
@@ -29,7 +30,7 @@ class ObjectTracker:
         self.max_centering_speed = 0.3   # Maximum speed for centering
         self.forward_speed = 1.0         # Forward speed when centered
         self.min_speed = 0.05           # Minimum speed threshold
-        self.max_yaw_rate = 5.0        # Maximum yaw rate in degrees/second
+        self.max_yaw_rate = 2.0        # Maximum yaw rate in degrees/second
         self.yaw_deadzone = 0.02        # Deadzone for yaw corrections (normalized)
         
         # Movement thresholds
@@ -83,15 +84,11 @@ class ObjectTracker:
         return (abs(error_x) < self.centering_threshold_x and 
                 abs(error_y) < self.centering_threshold_y)
         
-    def update(self):
+    def update(self, bbox: Tuple[int, int, int, int]):
         """Main tracking update loop with stable movement."""
         try:
-            frame = self.camera.capture_frame()
-            if frame is None:
-                return
-                
-            bbox = self.detector.detect_object(frame)
             if bbox is None:
+                # TODO : If the object is lost try to yaw to find it!
                 print("No detection - hovering")
                 self.controller.stop()
                 # Reset smoothing history when target lost
@@ -109,11 +106,13 @@ class ObjectTracker:
             error_x = (center_x - self.frame_width/2) / (self.frame_width/2)
             error_y = (center_y - self.frame_height/2) / (self.frame_height/2)
             
+            print(f'error_x : {error_x} error_y {error_y}') 
+
             # Distance for logging
             distance = self.estimate_distance(w)
             print(f"Distance to sphere: {distance:.2f}m")
             
-            if(distance < 0.1):
+            if distance < 0.1 and abs(error_x) < 0.05 and abs(error_y) < 0.05:
                 print("TARGET APPROACHED!!!")
                 self.controller.stop()
                 return
@@ -121,10 +120,9 @@ class ObjectTracker:
             # Calculate yaw correction based on horizontal error
             yaw_rate = 0.0
             if abs(error_x) > self.yaw_deadzone:
-                # Convert normalized error to yaw rate
-                # error_x range is -1 to 1, scale to max yaw rate
-                yaw_rate = error_x * self.max_yaw_rate  # Negative because positive yaw is counterclockwise
+                yaw_rate = -error_x * self.max_yaw_rate
                 print(f"Applying yaw correction: {yaw_rate:.2f} deg/s")
+
             
             # Calculate base forward speed based on horizontal centering
             if abs(error_x) < self.centering_threshold_x:
@@ -132,12 +130,12 @@ class ObjectTracker:
                 base_forward = self.forward_speed
             else:
                 # Partial forward movement while centering
-                base_forward = self.forward_speed * (1 - abs(error_x)/self.centering_threshold_x) * 0.5
-                
+                base_forward = self.forward_speed * (1 - abs(error_x))  # Slow down if misaligned
+                                
             # Combine forward movement with centering adjustment
-            vx = base_forward
-            vy = -self.calculate_velocity(error_y, 'Y')
-            vz = 0.2  # Initialize vertical velocity
+            vx = vx = max(base_forward, self.min_speed)
+            vy = -self.calculate_velocity(error_x, 'X')  # Left/right correction
+            vz = -self.calculate_velocity(error_y, 'Z')  # Up/down correction
             
             print(f"Forward speed: {base_forward:.2f}, Total vx: {vx:.2f}")
             
@@ -153,7 +151,7 @@ class ObjectTracker:
             
             # Apply velocity commands with yaw correction
             print(f"Commanding velocity: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f}, yaw_rate={yaw_rate:.2f}")
-            self.controller.move_by_velocity(vx, vy, vz, yaw_rate, 0.5)
+            self.controller.move_by_velocity(vx, vy, vz, yaw_rate, 2.0)
             
         except Exception as e:
             print(f"Error in tracking update: {str(e)}")

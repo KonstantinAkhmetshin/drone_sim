@@ -16,12 +16,13 @@ class ObjectDetector:
         self.max_radius = config.max_object_size // 2
         
         # Detection parameters tuned for dark sphere
-        self.threshold_value = 80  # Threshold for dark objects
+        self.threshold_value = 140  # Threshold for dark objects
         self.blur_size = (5, 5)
         self.min_circularity = 0.4  # Lowered from 0.7
         self.max_score = 1.0  # Maximum acceptable score
+    
         
-    def detect_object(self, frame: np.ndarray) -> Optional[Tuple[int, int, int, int]]:
+    def detect_object(self, frame: np.ndarray, processing_step: int) -> Optional[Tuple[int, int, int, int]]:
         """
         Detect dark spherical objects against light background.
         
@@ -45,15 +46,16 @@ class ObjectDetector:
                 cv2.THRESH_BINARY_INV
             )
             
+            
+            #cv2.imwrite(f'imageDedug/debug_binary-{self.threshold_value}-{processing_step}.png', binary)
+
             # Find contours
             contours, _ = cv2.findContours(
                 binary,
                 cv2.RETR_EXTERNAL,
                 cv2.CHAIN_APPROX_SIMPLE
             )
-            
-            print(f"Found {len(contours)} contours")
-            
+                        
             best_match = None
             best_score = float('inf')
             
@@ -90,8 +92,8 @@ class ObjectDetector:
                 
                 # Combined score (lower is better)
                 score = (
-                    (1.0 - circularity) * 0.4 +    # Circularity contribution
-                    (1.0 - solidity) * 0.3 +       # Solidity contribution
+                    (1.0 - circularity) * 0.5 +    # Circularity contribution
+                    (1.0 - solidity) * 0.2 +       # Solidity contribution
                     position_weight * 0.3          # Position contribution
                 )
                 
@@ -102,7 +104,7 @@ class ObjectDetector:
                 if score < best_score and circularity > self.min_circularity and score < self.max_score:
                     best_score = score
                     best_match = (x, y, radius)
-            
+
             if best_match:
                 x, y, radius = best_match
                 print(f"Best match - Center: ({x:.1f}, {y:.1f}), Radius: {radius:.1f}, Score: {best_score:.2f}")
